@@ -17,8 +17,8 @@ Resultados pendentes não constituem validação. Registre ambiente, versões, d
 - **Procedimento:** experimentar estilos de fundo RGBA em diferentes níveis e comparar texto e controles em GNOME/Wayland.
 - **Critérios de aprovação:** níveis de transparência distinguíveis e texto e controles legíveis e opacos, sem efeitos indesejados relevantes.
 - **Evidências esperadas:** versões, configurações CSS, capturas e observações por nível.
-- **Resultado observado:** pendente.
-- **Limitações e conclusão:** pendentes; comportamento depende do compositor e da integração com libadwaita.
+- **Resultado observado:** controle experimental e testes de conversão implementados; compilação e testes aprovados em Ubuntu. A execução não abriu o display. Detalhes em [resultados da POC-01](poc-01-results.md).
+- **Limitações e conclusão:** hipótese pendente de validação visual no Debian/GNOME/Wayland; o comportamento depende do compositor e da integração com libadwaita.
 
 ## POC-02 — Sobreposição manual
 
