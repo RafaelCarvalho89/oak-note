@@ -26,8 +26,8 @@ Resultados pendentes não constituem validação. Registre ambiente, versões, d
 - **Procedimento:** testar as opções disponíveis no menu da janela e documentar passos, ambiente e comportamento ao trocar de aplicativos.
 - **Critérios de aprovação:** procedimento reproduzível e limitações documentadas, inclusive caso a opção não exista.
 - **Evidências esperadas:** versões, passos, capturas e observações.
-- **Resultado observado:** pendente.
-- **Limitações e conclusão:** pendentes; não se presume controle direto da ordem das janelas pelo GTK4.
+- **Resultado observado:** inspeção e verificações automáticas concluídas em Ubuntu; a tentativa de execução Wayland não abriu o display. Os cenários manuais estão pendentes; consulte [resultados da POC-02](poc-02-results.md).
+- **Limitações e conclusão:** H02 pendente de evidências no Debian/GNOME/Wayland; não se presume controle direto da ordem das janelas pelo GTK4.
 
 ## POC-03 — Aparência e comportamento
 

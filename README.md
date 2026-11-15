@@ -27,6 +27,10 @@ cargo run --locked
 
 Execute em uma sessão gráfica para visualizar e fechar a janela. Posicione outro aplicativo atrás e mova “Transparência do fundo” entre 0% e 70%; o valor inicial é 0%. Teste também edição, redimensionamento e os modos claro e escuro. O conteúdo e o percentual são descartados ao fechar a aplicação.
 
+## Sobreposição manual
+
+A POC-02 investiga o menu de gerenciamento da janela no GNOME/Wayland. Ainda não há procedimento de ativação verificado para o Oak Note: o roteiro propõe tentar `Alt+Space` com a janela focada e procurar uma ação equivalente a “Sempre no topo”. A disponibilidade depende do compositor e das configurações da sessão. Consulte os [resultados e roteiro da POC-02](docs/poc-02-results.md).
+
 ## Verificações
 
 ```bash
@@ -40,7 +44,7 @@ O [plano de experimentos](docs/poc-plan.md) registra hipóteses, procedimentos, 
 
 ## Limitações
 
-Não há persistência, gerenciamento de notas, editor Markdown ou implementação de janela sempre no topo. A viabilidade da sobreposição depende do compositor e será investigada; não é uma capacidade presumida do GTK4. O código é experimental e pode ser descartado.
+Não há persistência, gerenciamento de notas, editor Markdown ou implementação de janela sempre no topo. A viabilidade da sobreposição manual depende do compositor e permanece pendente; não é uma capacidade presumida do GTK4. O código é experimental e pode ser descartado.
 
 ## Licença
 
