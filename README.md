@@ -2,7 +2,7 @@
 
 Prova de conceito independente do [Oak Note](https://github.com/RafaelCarvalho89/oak-note), um bloco de anotações nativo para Linux. Este repositório investiga tecnologias e comportamentos antes do MVP; não é o aplicativo principal. A visão do produto inclui notas rápidas, aparência ajustável e possível sobreposição de janelas, sujeita às capacidades do ambiente gráfico.
 
-As POCs 00 e 01 usam Rust, GTK4 e libadwaita para apresentar uma janela com texto editável e um controle experimental de transparência do fundo. O ambiente principal pretendido é Debian com GNOME/Wayland.
+As POCs usam Rust, GTK4 e libadwaita para apresentar uma janela com texto editável, controle experimental de transparência do fundo e seletor de tema Sistema/Claro/Escuro. O ambiente principal pretendido é Debian com GNOME/Wayland.
 
 ## Pré-requisitos no Debian
 
@@ -25,7 +25,7 @@ cargo build --locked
 cargo run --locked
 ```
 
-Execute em uma sessão gráfica para visualizar e fechar a janela. Posicione outro aplicativo atrás e mova “Transparência do fundo” entre 0% e 70%; o valor inicial é 0%. Teste também edição, redimensionamento e os modos claro e escuro. O conteúdo e o percentual são descartados ao fechar a aplicação.
+Execute em uma sessão gráfica para visualizar e fechar a janela. Posicione outro aplicativo atrás e mova “Transparência do fundo” entre 0% e 70%; o valor inicial é 0%. Alterne o seletor entre Sistema, Claro e Escuro, inclusive após mudar a preferência do GNOME, e teste edição e redimensionamento (aproximadamente 800 × 560, 500 × 400 e 360 × 280). O conteúdo, o tema e o percentual são descartados ao fechar a aplicação.
 
 ## Sobreposição manual
 
@@ -40,7 +40,7 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 ```
 
-O [plano de experimentos](docs/poc-plan.md) registra hipóteses, procedimentos, evidências e resultados. A compilação e os testes unitários passaram no ambiente de desenvolvimento Ubuntu; a abertura da janela e a hipótese de transparência ainda requerem validação manual em Debian/GNOME/Wayland. Consulte os [resultados da POC-01](docs/poc-01-results.md).
+O [plano de experimentos](docs/poc-plan.md) registra hipóteses, procedimentos, evidências e resultados. A compilação e os testes unitários passaram no ambiente de desenvolvimento Ubuntu; a abertura da janela e a hipótese de transparência ainda requerem validação manual em Debian/GNOME/Wayland. Consulte os [resultados da POC-01](docs/poc-01-results.md) e os [resultados e roteiro da POC-03](docs/poc-03-results.md); a validação de temas, contraste, teclado e dimensões compactas também está pendente.
 
 ## Limitações
 

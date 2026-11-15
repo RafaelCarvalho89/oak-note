@@ -35,8 +35,8 @@ Resultados pendentes não constituem validação. Registre ambiente, versões, d
 - **Procedimento:** alternar aparência do sistema, redimensionar a janela e comparar a interface com e sem CSS experimental.
 - **Critérios de aprovação:** texto e controles legíveis, janela utilizável e interações com CSS documentadas em ambos os modos.
 - **Evidências esperadas:** versões, configurações, capturas e observações.
-- **Resultado observado:** pendente.
-- **Limitações e conclusão:** pendentes.
+- **Resultado observado:** seletor experimental implementado e verificações Cargo aprovadas em Ubuntu; o display não pôde ser aberto. Consulte [resultados da POC-03](poc-03-results.md).
+- **Limitações e conclusão:** H03-A, H03-B, H03-C e H03-D pendentes de testes visuais e de teclado em Debian/GNOME/Wayland; H01 permanece pendente.
 
 ## POC-04 — Flatpak
 

@@ -32,7 +32,7 @@ fn build_window(app: &adw::Application) {
         .build();
     text.add_css_class("oak-editor");
     text.buffer().set_text(
-        "# Oak Note POC\n\nTexto de demonstração editável para avaliar a legibilidade.\n\n- Fundo claro e escuro\n- Texto, seleção e controles\n- Transparência ajustável\n\nAa Bb Cc 0123456789 — claro / escuro",
+        "# Oak Note POC\n\nTexto de demonstração editável para avaliar a legibilidade em fundos claros e escuros, mesmo quando uma janela colorida aparece atrás do editor. Este parágrafo longo ajuda a observar a quebra de linha durante o redimensionamento.\n\n## Lista de verificação\n\n- Fundo claro e escuro\n- Texto, seleção e controles\n- Transparência ajustável\n- Navegação por teclado\n\nCaracteres: á é í ó ú ç ñ € © — !? [] {} # * _\n\n## Mais conteúdo\n\nSelecione este texto e observe o cursor e o contraste.\n\nLinha 1: a edição continua disponível.\nLinha 2: teste a rolagem vertical.\nLinha 3: alterne entre os temas.\nLinha 4: compare diferentes níveis de transparência.\nLinha 5: redimensione a janela.\nLinha 6: observe possíveis cortes.\nLinha 7: teste a navegação por teclado.\nLinha 8: fim do conteúdo de demonstração.",
     );
 
     let scroll = gtk::ScrolledWindow::builder()
@@ -47,14 +47,25 @@ fn build_window(app: &adw::Application) {
     let label = gtk::Label::new(Some("Transparência do fundo"));
     label.set_mnemonic_widget(Some(&slider));
     let value = gtk::Label::new(Some("0%"));
-    let controls = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    let transparency_row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    transparency_row.append(&label);
+    transparency_row.append(&slider);
+    transparency_row.append(&value);
+
+    let theme = gtk::DropDown::from_strings(&["Sistema", "Claro", "Escuro"]);
+    let theme_label = gtk::Label::new(Some("Tema"));
+    theme_label.set_mnemonic_widget(Some(&theme));
+    let theme_row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    theme_row.append(&theme_label);
+    theme_row.append(&theme);
+
+    let controls = gtk::Box::new(gtk::Orientation::Vertical, 8);
     controls.set_margin_top(12);
     controls.set_margin_bottom(12);
     controls.set_margin_start(16);
     controls.set_margin_end(16);
-    controls.append(&label);
-    controls.append(&slider);
-    controls.append(&value);
+    controls.append(&theme_row);
+    controls.append(&transparency_row);
 
     let background = gtk::Box::new(gtk::Orientation::Vertical, 0);
     background.add_css_class("oak-background");
@@ -86,6 +97,18 @@ fn build_window(app: &adw::Application) {
         gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
     );
     let style = adw::StyleManager::default();
+    style.set_color_scheme(adw::ColorScheme::PreferLight);
+    theme.connect_selected_notify({
+        let style = style.clone();
+        move |theme| {
+            let scheme = match theme.selected() {
+                1 => adw::ColorScheme::ForceLight,
+                2 => adw::ColorScheme::ForceDark,
+                _ => adw::ColorScheme::PreferLight,
+            };
+            style.set_color_scheme(scheme);
+        }
+    });
     update_background(&provider, slider.value(), style.is_dark());
     slider.connect_value_changed({
         let provider = provider.clone();
