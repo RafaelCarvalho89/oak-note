@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.rafaelcarvalho89.OakNotePoc</id>
+  <name>Oak Note POC</name>
+  <summary>Experimental note interface</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>Oak Note POC explores a native text interface, appearance, and background transparency.</p>
+  </description>
+  <launchable type="desktop-id">io.github.rafaelcarvalho89.OakNotePoc.desktop</launchable>
+  <url type="homepage">https://github.com/RafaelCarvalho89/oak-note</url>
+  <developer id="io.github.rafaelcarvalho89"><name>Rafael Carvalho</name></developer>
+  <content_rating type="oars-1.1"/>
+</component>

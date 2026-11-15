@@ -31,6 +31,45 @@ Execute em uma sessão gráfica para visualizar e fechar a janela. Posicione out
 
 A POC-02 investiga o menu de gerenciamento da janela no GNOME/Wayland. Ainda não há procedimento de ativação verificado para o Oak Note: o roteiro propõe tentar `Alt+Space` com a janela focada e procurar uma ação equivalente a “Sempre no topo”. A disponibilidade depende do compositor e das configurações da sessão. Consulte os [resultados e roteiro da POC-02](docs/poc-02-results.md).
 
+## Flatpak experimental
+
+A POC-04 prepara um manifesto para GNOME Platform/SDK 50 e a extensão Rust `org.freedesktop.Sdk.Extension.rust-stable//25.08`. O build no SDK, a instalação e a execução ainda **não foram validados**. São necessários `flatpak`, `flatpak-builder`, um remote confiável que ofereça os runtimes, o SDK GNOME 50 e a extensão Rust 25.08. Instalar esses componentes ou configurar um remote altera o ambiente e deve ser feito pelo responsável; em Debian, `flatpak-builder` é um pacote de sistema. A primeira preparação pode precisar de rede.
+
+Com um remote `flathub` já configurado, instale os componentes necessários no escopo do usuário, se ainda não estiverem disponíveis:
+
+```bash
+flatpak install --user flathub org.gnome.Platform//50 org.gnome.Sdk//50 org.freedesktop.Sdk.Extension.rust-stable//25.08
+```
+
+O arquivo `flatpak/cargo-sources.json` já acompanha o projeto. Quando `Cargo.lock` mudar, regenere-o com o [gerador Cargo do flatpak-builder-tools](https://github.com/flatpak/flatpak-builder-tools/tree/master/cargo), verificando as alterações. Um exemplo com ambiente Python temporário é:
+
+```bash
+git clone https://github.com/flatpak/flatpak-builder-tools.git /tmp/oak-flatpak-builder-tools
+python3 -m venv /tmp/oak-flatpak-generator-venv
+/tmp/oak-flatpak-generator-venv/bin/pip install 'tomlkit>=0.13.3,<1' 'aiohttp>=3.9.5,<4'
+/tmp/oak-flatpak-generator-venv/bin/python /tmp/oak-flatpak-builder-tools/cargo/flatpak-cargo-generator.py Cargo.lock -o flatpak/cargo-sources.json
+```
+
+Na raiz do projeto, para compilar no SDK, exportar para repositório local e gerar o bundle:
+
+```bash
+flatpak-builder --state-dir=.flatpak-builder --repo=repo build-dir flatpak/io.github.rafaelcarvalho89.OakNotePoc.yml
+mkdir -p dist
+flatpak build-bundle repo dist/oak-note-poc.flatpak io.github.rafaelcarvalho89.OakNotePoc
+flatpak install --user ./dist/oak-note-poc.flatpak
+flatpak run io.github.rafaelcarvalho89.OakNotePoc
+```
+
+O builder baixa previamente fontes com checksums; o Cargo no SDK usa `--locked --offline`. O bundle não necessariamente inclui o runtime: outra máquina pode precisar obtê-lo de um remote configurado. Não existe repositório de distribuição ou mecanismo de atualização configurado aqui. Antes de testar instalação ou remoção, verifique se já existe uma instalação da POC no usuário. Para inspecionar permissões após instalação:
+
+```bash
+flatpak info --user --show-permissions io.github.rafaelcarvalho89.OakNotePoc
+flatpak override --user --show io.github.rafaelcarvalho89.OakNotePoc
+flatpak override --show io.github.rafaelcarvalho89.OakNotePoc
+```
+
+Consulte também overrides globais e [resultados da POC-04](docs/poc-04-results.md): o manifesto declara apenas Wayland, mas permissões efetivas, renderização, diretórios privados e compatibilidade ainda não foram verificados. A [síntese das POCs](docs/poc-summary.md) reúne riscos e decisões pendentes para o MVP.
+
 ## Verificações
 
 ```bash

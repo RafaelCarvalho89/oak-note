@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Oak Note POC
+Comment=Experimental note interface
+Exec=oak-note-poc
+Icon=io.github.rafaelcarvalho89.OakNotePoc
+Terminal=false
+Type=Application
+Categories=Utility;TextEditor;
+StartupNotify=true

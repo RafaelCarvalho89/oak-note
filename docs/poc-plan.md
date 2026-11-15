@@ -44,5 +44,5 @@ Resultados pendentes não constituem validação. Registre ambiente, versões, d
 - **Procedimento:** preparar um pacote experimental, executar no sandbox e comparar a janela e os recursos disponíveis com a execução nativa.
 - **Critérios de aprovação:** aplicação inicia no sandbox e diferenças e permissões necessárias ficam documentadas.
 - **Evidências esperadas:** manifesto experimental, versões, comandos, permissões e registros comparativos.
-- **Resultado observado:** pendente.
-- **Limitações e conclusão:** pendentes.
+- **Resultado observado:** manifesto e fontes Cargo preparados; metadados locais validados. `flatpak-builder` e SDK/extensão ausentes, sem build ou instalação. Consulte [resultados da POC-04](poc-04-results.md).
+- **Limitações e conclusão:** H04-A a H04-E pendentes; execução gráfica, permissões efetivas e bundle não foram comprovados.

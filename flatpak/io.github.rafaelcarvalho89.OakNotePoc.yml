@@ -1,0 +1,39 @@
+app-id: io.github.rafaelcarvalho89.OakNotePoc
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: oak-note-poc
+finish-args:
+  - --socket=wayland
+modules:
+  - name: oak-note-poc
+    buildsystem: simple
+    build-options:
+      prepend-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/oak-note-poc/cargo
+        CARGO_NET_OFFLINE: 'true'
+    build-commands:
+      - rustc --version && cargo --version
+      - cargo build --release --locked --offline
+      - install -Dm755 target/release/oak-note-poc /app/bin/oak-note-poc
+      - install -Dm644 io.github.rafaelcarvalho89.OakNotePoc.desktop /app/share/applications/io.github.rafaelcarvalho89.OakNotePoc.desktop
+      - install -Dm644 io.github.rafaelcarvalho89.OakNotePoc.metainfo.xml /app/share/metainfo/io.github.rafaelcarvalho89.OakNotePoc.metainfo.xml
+      - install -Dm644 io.github.rafaelcarvalho89.OakNotePoc.svg /app/share/icons/hicolor/scalable/apps/io.github.rafaelcarvalho89.OakNotePoc.svg
+    sources:
+      - type: file
+        path: ../Cargo.toml
+      - type: file
+        path: ../Cargo.lock
+      - type: dir
+        path: ../src
+        dest: src
+      - type: file
+        path: io.github.rafaelcarvalho89.OakNotePoc.desktop
+      - type: file
+        path: io.github.rafaelcarvalho89.OakNotePoc.metainfo.xml
+      - type: file
+        path: io.github.rafaelcarvalho89.OakNotePoc.svg
+      - cargo-sources.json
