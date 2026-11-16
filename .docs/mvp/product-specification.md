@@ -88,6 +88,8 @@ O caminho da nota **não é uma identidade imutável**: a renomeação altera o 
 
 **DT-04 aprovada (alternativa A):** o Oak Note possui **uma instância ativa por sessão da aplicação**. Novas ativações na mesma sessão direcionam o usuário à janela existente, sem iniciar um segundo editor independente. Operações internas sobre a mesma nota — salvamento, renomeação, envio à lixeira e migração — devem ser coordenadas e serializadas. Essa regra não restringe editores externos, outras sessões ou instalações com identidade diferente; a detecção e resolução de conflitos da DT-02 continuam obrigatórias.
 
+**DT-05 aprovada (alternativa B):** no autosave, após gravar o conteúdo em arquivo temporário no mesmo diretório, o Oak Note solicita sincronização dos dados do arquivo; depois publica a substituição atômica quando suportada e solicita sincronização do diretório quando disponível. O aplicativo deve distinguir **edição pendente, gravação publicada, durabilidade confirmada e durabilidade não verificada**; erros não podem ser comunicados como salvamento seguro. Isso **não garante durabilidade absoluta**, especialmente diante de limitações do filesystem ou de acessos via portal/Flatpak. O debounce de aproximadamente 700 ms continua **candidato para validação**, não valor aprovado.
+
 **DT-02 aprovada (alternativa B):** se uma nota aberta tiver sido modificada, substituída, removida ou renomeada externamente, o Oak Note **bloqueia qualquer sobrescrita automática** do caminho afetado e sinaliza conflito. Oferece três ações: **recarregar a versão externa** (confirmando antes de descartar edições locais); **salvar a edição local como nova nota** (respeitando a sugestão editável de nome da DT-01 e sem substituir a versão externa); ou **cancelar**, mantendo o buffer e o conflito pendentes. Nenhum desses caminhos pode perder silenciosamente alterações. A detecção e a resolução operacional serão detalhadas na PREP-02.
 
 A substituição atômica não significa garantia absoluta contra perda de dados em falha de hardware ou energia, nem substitui backups.
@@ -142,10 +144,10 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** alterações disparam um salvamento sem comando manual obrigatório; o intervalo exato será definido na PREP-02 (700 ms é sugestão, não compromisso fechado).
 
 **RF-10 — Salvar com segurança.** Evitar substituição parcial ou regressão para revisão antiga.  
-**Aceite:** operações de gravação da mesma nota são ordenadas; publicação utiliza arquivo temporário e substituição segura; falhas não marcam uma revisão não persistida como salva.
+**Aceite:** operações de gravação da mesma nota são ordenadas; publicar exige escrever um temporário no mesmo diretório, verificar escrita/flush, sincronizar seus dados, substituir atomicamente quando suportado e solicitar sincronização do diretório quando disponível (DT-05). Falha antes da publicação preserva a edição como pendente; falha após a publicação, ausência de suporte ou resultado incerto **não podem ser apresentados como durabilidade confirmada** nem apagar o buffer. Revisões antigas não podem marcar revisões novas como salvas.
 
 **RF-11 — Comunicar estado de salvamento.** Exibir estados compreensíveis, como alteração pendente, salvando, salvo e falha.  
-**Aceite:** após falha aparece aviso perceptível, alterações pendentes são preservadas e há possibilidade de nova tentativa; um conflito externo é apresentado de forma distinta de falha de I/O e não é tratado como salvamento bem-sucedido.
+**Aceite:** após falha aparece aviso perceptível, alterações pendentes são preservadas e há possibilidade de nova tentativa; um conflito externo é apresentado de forma distinta de falha de I/O. O estado exibido distingue **publicação no destino** de **durabilidade verificada**, sinalizando sincronização falha, indisponível ou incerta sem alegar conclusão segura (DT-05).
 
 **RF-12 — Proteger alterações ao alternar ou encerrar.** Não descartar dados alterados silenciosamente.  
 **Aceite:** ao trocar de nota ou fechar, o aplicativo tenta concluir as gravações pendentes; quando não for possível, apresenta alternativa segura ou confirmação explícita de eventual descarte, sem alegar que salvou.
@@ -314,7 +316,7 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-02 — Proteção contra colisões:** criar ou renomear para nome ocupado oferece sugestão editável e não altera o conteúdo da nota existente.
 
-**CA-03 — Falha de gravação:** simular erro de I/O e comprovar que o aplicativo não exibe estado “salvo”, preserva o texto em memória e permite nova tentativa.
+**CA-03 — Falha de gravação:** simular erro de I/O e comprovar que o aplicativo não exibe estado “salvo” para revisão não publicada, preserva o texto em memória e permite nova tentativa. Falhas **após** a publicação precisam ser distinguidas de falhas anteriores, sem alegar durabilidade confirmada.
 
 **CA-04 — Concorrência:** provocar alterações em sequência e verificar que gravações atrasadas não substituem revisões mais recentes.
 
@@ -325,6 +327,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 **CA-16 — Exclusão pela lixeira:** cancelar exclusão preserva arquivo e lista; confirmar move a nota para a lixeira quando suportado; a lista é atualizada somente após sucesso. Simular lixeira indisponível, acesso negado e erro de operação: o arquivo permanece no local e **nunca** há exclusão definitiva substitutiva. Antes da operação, verificar edição pendente e alteração externa sem apagar revisão inesperada.
 
 **CA-17 — Instância única e concorrência:** iniciar o Oak Note repetidamente na mesma sessão e confirmar reativação da janela existente, sem segundo editor independente e sem perder alterações pendentes. Provocar operações internas simultâneas na mesma nota e verificar serialização, ausência de publicação obsoleta e integridade. Modificar externamente a nota e confirmar que a DT-02 continua aplicável.
+
+**CA-18 — Sincronização e durabilidade (DT-05):** verificar escrita no temporário, sincronização do arquivo, substituição e sincronização do diretório quando suportada. Simular falhas em cada etapa, incluindo **falha após a substituição**; confirmar que a UI distingue publicação de durabilidade não confirmada e preserva o buffer para recuperação segura. Testar filesystem/portal que não ofereçam todas as garantias, sem prometer recuperação absoluta após queda de energia.
 
 **CA-07 — Navegação:** criar várias notas, pesquisar pelo título, ordenar por modificação e recolher/expandir a barra lateral sem perda de edição.
 
@@ -391,7 +395,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-01 | Regras de normalização de título, nomes reservados, espaços, extensão e caracteres Unicode | Integridade e portabilidade | PREP-02 |
 | QA-02 | Detalhes de formato da sugestão de nome alternativo e título inicial (a política de **sugestão editável** já está aprovada na DT-01) | Criação e renomeação | PREP-02 |
 | QA-03 | Mecanismo de referência à nota durante renomeação, sem ID persistente | Seleção e concorrência | PREP-02 |
-| QA-04 | Debounce exato, sincronização/durabilidade, escrita e retry em caso de falha | Proteção dos dados | PREP-02 |
+| QA-04 | **DT-05 aprovada:** sincronizar dados do temporário, publicar por substituição atômica quando suportada e sincronizar diretório quando disponível; detalhar debounce, estados de durabilidade incerta, retry e compatibilidade real | Proteção dos dados | PREP-02 |
 | QA-05 | **DT-02 aprovada:** recarregar com confirmação, salvar edição local como nova nota ou cancelar mantendo conflito; detalhar detecção, arquivo ausente/renomeado, fechamento e concorrência | Proteção dos dados | PREP-02 |
 | QA-06 | **DT-03 aprovada:** enviar nota à lixeira após confirmação; se indisponível ou falhar, informar erro sem excluir definitivamente. Detalhar suporte GIO/Flatpak e validações pré-exclusão | Segurança do usuário | PREP-02 |
 | QA-07 | **DT-04 aprovada:** instância única por sessão, ativações encaminhadas à janela existente, operações internas serializadas. Refinar limites entre sessões/instalações, arquivos ausentes, symlinks e concorrência externa | Robustez | PREP-02 |
@@ -423,6 +427,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-02 | Conflito externo: bloquear sobrescrita e oferecer recarregar com confirmação, salvar local como nova nota ou cancelar preservando o buffer |
 | DT-03 | Excluir nota: mover para lixeira após confirmação; sem exclusão permanente como fallback |
 | DT-04 | Uma instância ativa por sessão, com reativação da janela existente e serialização interna; conflitos externos permanecem protegidos |
+| DT-05 | Salvamento reforçado: sync do temporário, substituição atômica quando suportada, sync de diretório quando disponível e distinção entre publicação e durabilidade comprovada |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -430,6 +435,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 17 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 18 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
