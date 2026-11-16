@@ -24,7 +24,7 @@ O Oak Note é um **bloco de anotações Open Source, nativo para Linux**, projet
 **Plataforma primária:** Debian + GNOME em sessão Wayland.  
 **Stack estabelecida no planejamento:** Rust, GTK4 e libadwaita.  
 **Licença:** MIT.  
-**Modelo de distribuição inicial:** código-fonte e Flatpak publicado no GitHub Releases, com publicação controlada.  
+**Modelo de distribuição inicial:** código-fonte e Flatpak publicado no GitHub Releases, com publicação controlada. **DT-08 aprovada (alternativa C):** usar `org.gnome.Platform//51` e `org.gnome.Sdk//51`, com compilador Rust no canal `stable` **sem versão exata fixada**. Registrar a versão efetivamente usada em cada build; o `Cargo.lock` continua versionado, mas **não garante sozinho builds binariamente reproduzíveis** quando o compilador e SDK/extensões podem evoluir. A compatibilidade e o suporte da combinação escolhida ainda deverão ser validados no M1.  
 **Idioma da interface:** português brasileiro e inglês, acompanhando automaticamente o idioma do sistema.
 
 ### 2.1. Público-alvo e contexto de uso
@@ -199,7 +199,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** textos próprios da interface são localizados com gettext; idioma segue a configuração regional disponível, com fallback definido; textos das anotações não são traduzidos.
 
 **RF-25 — Distribuição.** Oferecer instalação por Flatpak e instruções para compilação pelo código-fonte.  
-**Aceite:** artefato Flatpak da versão `0.1.0` pode ser instalado, aberto e encerrado no ambiente de referência; Application ID é `io.github.rafaelcarvalho89.oaknote`; publicação exige aprovação e inclui notas de versão.
+**Aceite:** artefato Flatpak da versão `0.1.0` pode ser instalado, aberto e encerrado no ambiente de referência; Application ID é `io.github.rafaelcarvalho89.oaknote`; a base de runtime/SDK é **GNOME 51** e a toolchain de desenvolvimento/CI acompanha o canal **Rust stable sem pin de versão** (DT-08). O CI registra versões reais de compilador, Cargo, extensões/SDK e dependências necessárias para diagnóstico; deve validar compatibilidade com GTK4/libadwaita e Debian/GNOME/Wayland. A publicação exige testes, aprovação e notas de versão, sem alegar reprodutibilidade binária garantida.
 
 **RF-26 — Configurar diretório das notas.** Por padrão, utilizar a pasta XDG **Documentos** do usuário e permitir selecionar outro diretório para o conjunto de notas gerenciado.  
 **Aceite:** em instalação inicial, o aplicativo reconhece a pasta Documentos configurada pelo sistema; exibe o diretório ativo; utiliza o acesso Flatpak limitado a XDG Documentos e permite selecionar outra pasta mediante autorização do usuário pelo portal (DT-18). **Antes de ativar uma pasta alternativa, verifica as capacidades obrigatórias de gerenciamento e persistência do acesso**; se não forem comprovadas, mantém a pasta anterior e comunica o motivo, sem solicitar acesso amplo à `home`. Exibe e persiste a seleção válida e a restaura ao reiniciar; indisponibilidade ou perda posterior da autorização exige reautorização ou nova escolha, sem redirecionamento silencioso. Ao trocar de pasta, **oferece escolha explícita entre manter as notas na origem e migrá-las**, sem movimentação ou remoção silenciosa. **Se a pasta selecionada contiver arquivos `.md` preexistentes na raiz, solicitar confirmação DT-19 somente quando não houver confirmação válida daquele diretório persistida pela DT-21.** A confirmação anterior não substitui uma autorização válida do portal (DT-18). Na opção **migrar**, copiar sem sobrescrever arquivos existentes, conferir todas as cópias antes de ativar o novo destino e solicitar confirmação explícita antes de remover originais. Revalidar as condições de exclusão e preservar qualquer original cuja remoção não seja segura. Falhas, conflitos e cancelamentos precisam preservar os dados e ser comunicados.
@@ -223,8 +223,8 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 | RNF-10 | Mínimo privilégio | Flatpak com `--filesystem=xdg-documents` (leitura/escrita dentro de Documentos), demais pastas somente via seleção e autorização explícita pelo portal; não solicitar `home`/`host`, rede ou D-Bus irrestrito como fallback; operações e persistência exigem validação prática (DT-18) |
 | RNF-11 | Observabilidade local | Logs estruturados de falha e diagnóstico sem conteúdo das notas, credenciais ou dados sensíveis |
 | RNF-12 | Testabilidade | Testes unitários das regras e integração do filesystem, inclusive falhas e conflitos |
-| RNF-13 | Integração contínua | GitHub Actions executa Fmt, Clippy e testes para alterações propostas |
-| RNF-14 | Distribuição controlada | Versão SemVer, `CHANGELOG.md`, verificação do Flatpak e release aprovada manualmente |
+| RNF-13 | Integração contínua | GitHub Actions executa Fmt, Clippy e testes; DT-08: registrar a versão do Rust stable efetivamente utilizada e validar compatibilidade com SDK GNOME 51, sem pressupor versão de compilador fixa |
+| RNF-14 | Distribuição controlada | Versão SemVer, `CHANGELOG.md`, Flatpak com GNOME Platform/SDK 51 e Rust stable não fixado; registrar versões e componentes do build, validar mudanças e exigir release aprovada manualmente |
 | RNF-15 | Arquitetura proporcional | Organização **feature-based**; um crate Rust; arquitetura modular com limites hexagonais seletivos; aplicar SOLID, YAGNI e DRY de forma contextual, sem interfaces ou camadas artificiais |
 | RNF-16 | Preferências persistentes | Um esquema GSettings versionado, distribuído corretamente e testado no Flatpak |
 
@@ -351,7 +351,7 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-09 — Integração GNOME:** ativar e desativar manualmente sobreposição enquanto outro aplicativo possui foco; validar operação sem click-through.
 
-**CA-10 — Distribuição:** compilar, instalar e iniciar Flatpak com ID definitivo, inspecionando permissões efetivas.
+**CA-10 — Distribuição:** compilar, instalar e iniciar Flatpak com ID definitivo, inspecionando permissões efetivas, runtime/SDK GNOME 51 e compilador Rust stable efetivo. Registrar componentes usados para permitir auditoria, reconhecendo a variabilidade de versões entre builds.
 
 **CA-11 — Localização e acessibilidade:** percorrer funções essenciais em pt-BR/en-US com teclado, foco visível e teste básico com Orca.
 
@@ -366,6 +366,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 **CA-22 — Persistência de confirmação por diretório (DT-21):** confirmar pastas A e B, reiniciar e retornar a ambas sem novo diálogo, desde que sua identidade e acesso ainda sejam válidos. Selecionar uma pasta C desconhecida com `.md` exige confirmação própria. Simular registro inválido, diretório removido/recriado ou substituído, autorização do portal revogada e alteração de localização: nenhuma situação permite reconhecer notas silenciosamente apenas por confiar em um registro antigo. A confirmação não cria índice nem altera o conteúdo Markdown.
 
 **CA-23 — Exportação com resultado parcial (DT-07):** preparar três notas e destino com um nome ocupado; comprovar que o existente não é alterado e o demais são exportados. Simular falha de escrita individual e cancelamento durante a cópia: notas exportadas com sucesso continuam disponíveis, arquivos incompletos não contam como sucesso, e o relatório separa exportados, ignorados, erros e não processados. Testar destino igual à origem e edições pendentes, preservando arquivos e evitando cópias destrutivas ou obsoletas.
+
+**CA-24 — Compatibilidade da toolchain (DT-08):** confirmar que runtime/SDK Flatpak GNOME 51 e extensão Rust stable compatível permitem build, instalação e execução no ambiente-alvo; registrar em CI a versão efetiva de Rust/Cargo, SDK/extensão e dependências relevantes. Verificar que atualização do canal stable dispara validação e que falhas de compatibilidade bloqueiam release; não afirmar que dois builds em datas diferentes serão idênticos.
 
 **Nota de escopo:** a DT-03 rege a **exclusão individual solicitada pelo usuário**. A limpeza de arquivos de origem após uma migração confirmada continua sujeita à DT-20, com política operacional própria a ser refinada.
 
@@ -423,7 +425,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-10 | Dimensões mínimas reais e composição adaptativa | Usabilidade | PREP-02 |
 | QA-11 | **DT-07 aprovada:** continuar após colisões e falhas individuais recuperáveis, sem sobrescrever; relatar exportados, ignorados, erros e cancelamentos. Detalhar cópia segura, resultados incertos, destino igual à origem e erros que impedem continuar | Proteção das cópias | PREP-02 |
 | QA-12 | Detalhes de GSettings, esquema de versão, valores padrão e fallback de idioma | Persistência | PREP-02 |
-| QA-13 | Versão final suportada do SDK/runtime Flatpak, permissões e metadados definitivos | Distribuição | PREP-02 |
+| QA-13 | **DT-08 aprovada:** GNOME Platform/SDK 51 e Rust stable não fixado; exigir diagnóstico do compilador e validação da extensão SDK, dependências e funcionamento no host. Metadados definitivos e matriz de compatibilidade devem ser concluídos antes de M1/release | Distribuição | PREP-02 |
 | QA-14 | Mapeamento final dos atalhos internos e orientação do atalho no GNOME | Acessibilidade | PREP-02 |
 | QA-15 | **DT-17/DT-20 aprovadas:** oferecer manter ou migrar; migração por cópia integral e verificação antes de ativar destino, com confirmação adicional antes da remoção. Detalhar recuperação, falhas parciais e concorrência externa | Integridade e experiência | PREP-02 |
 | QA-16 | **DT-18 aprovada:** XDG Documentos + portal sem ampliação automática; **DT-21 aprovada:** persistir confirmações por diretório no GSettings, sem índice de notas. Detalhar identidade/revalidação do diretório, registros inválidos e distinção de permissões do portal | Acesso a dados | PREP-02 |
@@ -452,6 +454,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-18 | Flatpak: acesso estático somente a XDG Documentos; portal para pastas alternativas, com validação efetiva das operações e autorização persistente; sem ampliação automática de permissões |
 | DT-21 | Confirmar reconhecimento de `.md` por diretório e persistir o consentimento em GSettings; revisitar pasta válida sem novo diálogo; sem índice de notas nem autorização automática de portal |
 | DT-07 | Exportar as notas possíveis sem sobrescrever nomes ocupados; continuar após falhas individuais recuperáveis e relatar sucesso, itens ignorados, erros, cancelamento e parciais |
+| DT-08 | GNOME Platform/SDK 51 + Rust stable sem pin de versão; registrar versões efetivas e validar builds, compatibilidade e limitações de reprodutibilidade |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -459,6 +462,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 23 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 24 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
