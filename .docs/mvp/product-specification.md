@@ -79,6 +79,8 @@ O caminho da nota **não é uma identidade imutável**: a renomeação altera o 
 
 **Diretório de armazenamento:** por padrão, as notas residem diretamente no diretório especial **Documentos** configurado para o usuário (XDG user directory; por exemplo, `/home/<USER>/Documentos` em ambiente pt-BR). O usuário pode selecionar outro diretório. Não se presume a criação automática de uma subpasta `Oak Note`. **DT-17 aprovada (alternativa C):** ao alterar o diretório ativo, o usuário escolhe explicitamente entre **manter as notas na pasta original** e **migrá-las para a nova pasta**. Não mover ou apagar arquivos implicitamente. A estratégia de migração segura, conflitos e falhas será refinada na PREP-02.
 
+**DT-19 aprovada (alternativa B):** no primeiro acesso a uma pasta que já contenha arquivos `.md` diretamente na **raiz**, o Oak Note informa que esses arquivos serão reconhecidos como notas e solicita confirmação. O usuário pode aceitar ou escolher outra pasta. Não há busca em subdiretórios, cópia/importação nem alteração de arquivos por causa desse reconhecimento. A forma de lembrar a confirmação por pasta será refinada na PREP-02.
+
 ### 4.2. Integridade e concorrência
 
 **ADR-03:** o salvamento automático usa debounce, arquivo temporário no mesmo diretório, substituição atômica quando suportada, escrita serializada por nota e tratamento explícito de falhas. Revisões antigas não podem substituir conteúdo mais recente.
@@ -111,7 +113,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** a nota criada aparece na lista, torna-se selecionável/editável e é persistida como arquivo `.md` no diretório ativo com nome válido; se o título conflitar, o aplicativo **sugere nome disponível** (por exemplo, `Ideias (2)`), permitindo aceitar ou escolher outro; nenhuma nota existente é sobrescrita.
 
 **RF-02 — Listar notas.** Mostrar as notas gerenciadas pelo aplicativo.  
-**Aceite:** arquivos `.md` válidos do diretório de notas ativo (Documentos por padrão, ou outro selecionado) são apresentados com títulos derivados de seus nomes; arquivos desconhecidos não são alterados apenas pela listagem. A política de subdiretórios e arquivos `.md` preexistentes será refinada.
+**Aceite:** arquivos `.md` válidos do diretório de notas ativo (Documentos por padrão, ou outro selecionado) são apresentados com títulos derivados de seus nomes; arquivos desconhecidos não são alterados apenas pela listagem. **DT-19:** ao primeiro acesso a pasta com arquivos `.md` preexistentes diretamente na raiz, informar que eles serão reconhecidos como notas e solicitar confirmação antes de listá-los/abri-los; permitir aceitar ou escolher outra pasta. Não percorrer subdiretórios, alterar nem importar arquivos por causa da identificação. O mecanismo de lembrar a confirmação por pasta será refinado.
 
 **RF-03 — Selecionar nota.** Alternar entre notas da lista.  
 **Aceite:** selecionar uma nota carrega seu conteúdo no editor; alterações pendentes da nota anterior são tratadas conforme RF-10 e RF-12, sem descarte silencioso.
@@ -189,7 +191,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** artefato Flatpak da versão `0.1.0` pode ser instalado, aberto e encerrado no ambiente de referência; Application ID é `io.github.rafaelcarvalho89.oaknote`; publicação exige aprovação e inclui notas de versão.
 
 **RF-26 — Configurar diretório das notas.** Por padrão, utilizar a pasta XDG **Documentos** do usuário e permitir selecionar outro diretório para o conjunto de notas gerenciado.  
-**Aceite:** em instalação inicial, o aplicativo reconhece a pasta Documentos configurada pelo sistema; exibe o diretório ativo; permite selecionar pasta alternativa e persiste a seleção; restaura o diretório escolhido ao reiniciar; informa indisponibilidade e ausência de permissão sem redirecionar ou perder notas silenciosamente. Ao trocar de pasta, **oferece escolha explícita entre manter as notas na origem e migrá-las**, sem movimentação ou remoção silenciosa. Falhas, conflitos e cancelamentos precisam preservar os dados e ser comunicados.
+**Aceite:** em instalação inicial, o aplicativo reconhece a pasta Documentos configurada pelo sistema; exibe o diretório ativo; permite selecionar pasta alternativa e persiste a seleção; restaura o diretório escolhido ao reiniciar; informa indisponibilidade e ausência de permissão sem redirecionar ou perder notas silenciosamente. Ao trocar de pasta, **oferece escolha explícita entre manter as notas na origem e migrá-las**, sem movimentação ou remoção silenciosa. **Se a pasta selecionada contiver arquivos `.md` preexistentes na raiz, aplicar a confirmação da DT-19 antes de reconhecê-los como notas.** Falhas, conflitos e cancelamentos precisam preservar os dados e ser comunicados.
 
 ## 6. Requisitos não funcionais (RNF)
 
@@ -266,10 +268,11 @@ Os RNFs 05 e 06 não estabelecem, nesta etapa, garantias absolutas de durabilida
 1. Usuário acessa Preferências e consulta a pasta de armazenamento ativa.
 2. Seleciona outro diretório usando seletor de pastas do sistema.
 3. O aplicativo valida disponibilidade e permissão de leitura/gravação.
-4. Apresenta opção explícita de **manter as notas na pasta anterior** ou **migrá-las para a pasta selecionada**.
-5. Ao escolher manter, preserva integralmente os arquivos de origem e passa a utilizar a pasta de destino.
-6. Ao escolher migrar, coordena transferências e verifica conflitos, sem sobrescrever arquivos existentes ou remover notas silenciosamente.
-7. Persiste a escolha de pasta quando a troca for concluída com segurança; caso contrário, comunica o problema e permite cancelar ou resolver.
+4. Se o novo diretório já possuir arquivos `.md` na raiz e for seu primeiro acesso, informa que eles serão reconhecidos como notas e exige confirmação ou a escolha de outra pasta (DT-19).
+5. Apresenta opção explícita de **manter as notas na pasta anterior** ou **migrá-las para a pasta selecionada**.
+6. Ao escolher manter, preserva integralmente os arquivos de origem e passa a utilizar a pasta de destino.
+7. Ao escolher migrar, coordena transferências e verifica conflitos, sem sobrescrever arquivos existentes ou remover notas silenciosamente.
+8. Persiste a escolha de pasta quando a troca for concluída com segurança; caso contrário, comunica o problema e permite cancelar ou resolver.
 
 **Pendente na PREP-02:** operação de transferência, comportamento em migração parcial, notas com alterações pendentes, nomes duplicados e momento de ativação da nova pasta.
 
@@ -317,6 +320,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 **CA-13 — Pasta de notas:** em instalação inicial utilizar a pasta XDG Documentos disponível; selecionar outra pasta, reiniciar e verificar persistência, listagem e escrita no novo destino; simular acesso negado e remoção do diretório sem perda silenciosa.
 
 **CA-14 — Escolha de migração:** ao trocar o diretório, escolher **manter** e confirmar que notas anteriores permaneceram intactas; escolher **migrar** e verificar conteúdo no destino e tratamento de arquivos já existentes; cancelar a mudança sem efeitos inesperados; injetar falha de I/O e comprovar que não houve perda silenciosa.
+
+**CA-15 — Arquivos Markdown preexistentes:** no primeiro acesso a uma pasta com `.md` na raiz, solicitar confirmação; ao aceitar, listá-los sem alterar seu conteúdo; ao escolher outra pasta, não abri-los nem modificá-los. Diretórios sem `.md` não exigem confirmação; subpastas não são percorridas.
 
 Esses cenários devem ser transformados em testes e checklists detalhados nas próximas etapas.
 
@@ -375,7 +380,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-13 | Versão final suportada do SDK/runtime Flatpak, permissões e metadados definitivos | Distribuição | PREP-02 |
 | QA-14 | Mapeamento final dos atalhos internos e orientação do atalho no GNOME | Acessibilidade | PREP-02 |
 | QA-15 | **DT-17 aprovada: oferecer escolha entre manter e migrar**. Detalhar operação de migração, conflitos, falhas parciais e comutação do diretório ativo | Integridade e experiência | PREP-02 |
-| QA-16 | Permissões do Flatpak/portal para pasta alternativa, localização XDG Documentos indisponível e tratamento de arquivos Markdown preexistentes | Acesso a dados | PREP-02 |
+| QA-16 | Permissões do Flatpak/portal, localização XDG Documentos indisponível e **persistência da confirmação DT-19 por pasta**, sem índice de notas | Acesso a dados | PREP-02 |
 
 ## 13. Rastreabilidade e diretrizes aprovadas
 
@@ -390,6 +395,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | ADR-07 | Transparência de todos os fundos da janela principal, conteúdo opaco |
 | DT-01 | Nome duplicado: sugerir nome alternativo e permitir aceitar/editar, sem sobrescrever |
 | DT-17 | Troca de pasta: escolher manter notas na origem ou migrá-las, sem movimentação silenciosa |
+| DT-19 | Confirmar reconhecimento de `.md` existentes na raiz no primeiro acesso ou selecionar outra pasta; sem recursão |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -397,6 +403,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 26 RFs, 16 RNFs, 14 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 26 RFs, 16 RNFs, 15 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
