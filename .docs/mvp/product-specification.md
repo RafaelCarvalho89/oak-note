@@ -49,7 +49,7 @@ Não foram estabelecidas métricas numéricas de adoção, desempenho ou retenç
 | Edição | Editor de **Markdown textual**, sem preview obrigatório | Sem editor rico/WYSIWYG |
 | Arquivos | Uma nota por `.md`, nome físico derivado do título | Sem SQLite ou índice auxiliar |
 | Diretório de notas | Pasta XDG **Documentos** do usuário por padrão, com seleção de outro diretório nas preferências | Sem caminho fixo de usuário e sem obrigação de guardar em área privada do Flatpak |
-| Gerenciamento | Criar, selecionar, renomear, excluir com confirmação | Sem pastas, tags ou favoritos |
+| Gerenciamento | Criar, selecionar, renomear e enviar nota à lixeira após confirmação | Sem pastas, tags ou favoritos; sem exclusão permanente como fallback |
 | Busca | Pesquisa rápida **por título** | Sem busca de conteúdo |
 | Ordenação | Mais recentemente modificada primeiro | Sem ordenação configurável |
 | Persistência | Autosave, gravação segura, controle de conflito e erros | Sem versões históricas automáticas |
@@ -124,8 +124,8 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **RF-05 — Renomear nota.** Alterar o título da nota e seu nome físico, segundo regras de nomes.  
 **Aceite:** após renomeação bem-sucedida a lista e a seleção refletem o novo nome; havendo colisão, é sugerido um nome disponível, editável pelo usuário; nomes inválidos e falhas não sobrescrevem outros arquivos nem eliminam o conteúdo anterior.
 
-**RF-06 — Excluir nota.** Oferecer exclusão mediante confirmação.  
-**Aceite:** cancelar mantém a nota intacta; confirmar remove a nota escolhida da lista e aplica o tratamento de arquivos definido na especificação técnica; nenhuma nota diferente é excluída.
+**RF-06 — Excluir nota.** Oferecer exclusão mediante confirmação, **movendo o arquivo para a lixeira** conforme DT-03 (alternativa A).  
+**Aceite:** cancelar mantém a nota intacta; confirmar, após tratar alterações pendentes e verificar que o arquivo ainda corresponde à nota selecionada, solicita sua movimentação para a lixeira. Somente após confirmação de sucesso da operação a nota deixa a lista. Se a lixeira estiver indisponível, a operação não for suportada ou falhar, o aplicativo informa o erro, mantém a nota e **não executa exclusão definitiva como alternativa automática**. Arquivos externos modificados desde a leitura são tratados conforme DT-02; nenhuma outra nota é excluída.
 
 **RF-07 — Pesquisar por título.** Filtrar a lista pelo título.  
 **Aceite:** uma pesquisa mostra apenas notas correspondentes ao título; conteúdo textual que não esteja no título não é pesquisado; limpar a pesquisa restaura a listagem.
@@ -238,10 +238,11 @@ Os RNFs 05 e 06 não estabelecem, nesta etapa, garantias absolutas de durabilida
 ### UC-03 — Renomear ou excluir
 1. Usuário seleciona uma nota.
 2. Renomeia ou solicita exclusão.
-3. Em caso de exclusão, confirma ou cancela.
-4. A lista e a seleção são atualizadas após o resultado.
+3. Em caso de exclusão, o aplicativo verifica alterações pendentes, conflitos externos e se o arquivo ainda corresponde à nota selecionada.
+4. O usuário confirma ou cancela o envio **para a lixeira**.
+5. Após confirmação do resultado bem-sucedido da operação, a lista e a seleção são atualizadas. Em caso de falha, a nota permanece disponível e um erro é apresentado.
 
-**Falhas:** nome inválido, destino ocupado e falha de I/O não podem remover outra nota ou perder o conteúdo original.
+**Falhas:** nome inválido, destino ocupado, alteração externa, lixeira indisponível ou erro de I/O não podem remover outra nota nem perder conteúdo pendente. **Não oferecer exclusão definitiva como fallback (DT-03).**
 
 ### UC-04 — Usar a janela enquanto trabalha
 1. Usuário abre a nota desejada.
@@ -308,6 +309,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-06 — Arquivos portáveis:** inspecionar arquivos criados/renomeados em editor externo; confirmar Markdown puro e título coerente com o nome físico.
 
+**CA-16 — Exclusão pela lixeira:** cancelar exclusão preserva arquivo e lista; confirmar move a nota para a lixeira quando suportado; a lista é atualizada somente após sucesso. Simular lixeira indisponível, acesso negado e erro de operação: o arquivo permanece no local e **nunca** há exclusão definitiva substitutiva. Antes da operação, verificar edição pendente e alteração externa sem apagar revisão inesperada.
+
 **CA-07 — Navegação:** criar várias notas, pesquisar pelo título, ordenar por modificação e recolher/expandir a barra lateral sem perda de edição.
 
 **CA-08 — Aparência:** alternar Sistema/Claro/Escuro, variar transparência e reiniciar; validar persistência e opacidade do conteúdo, inclusive no cabeçalho.
@@ -325,6 +328,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 **CA-14 — Escolha de migração:** ao trocar o diretório, escolher **manter** e confirmar que notas anteriores permaneceram intactas; escolher **migrar**, copiar e validar **todas** as notas antes de ativar o destino; não sobrescrever arquivos existentes; solicitar confirmação explícita para remover originais **depois** da ativação e revalidar sua segurança. Cancelamento, falha de I/O, colisão e migração parcial não podem apagar originais silenciosamente. Falha na limpeza posterior deve ser informada sem desativar automaticamente a pasta nova já validada.
 
 **CA-15 — Arquivos Markdown preexistentes:** no primeiro acesso a uma pasta com `.md` na raiz, solicitar confirmação; ao aceitar, listá-los sem alterar seu conteúdo; ao escolher outra pasta, não abri-los nem modificá-los. Diretórios sem `.md` não exigem confirmação; subpastas não são percorridas.
+
+**Nota de escopo:** a DT-03 rege a **exclusão individual solicitada pelo usuário**. A limpeza de arquivos de origem após uma migração confirmada continua sujeita à DT-20, com política operacional própria a ser refinada.
 
 Esses cenários devem ser transformados em testes e checklists detalhados nas próximas etapas.
 
@@ -373,7 +378,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-03 | Mecanismo de referência à nota durante renomeação, sem ID persistente | Seleção e concorrência | PREP-02 |
 | QA-04 | Debounce exato, sincronização/durabilidade, escrita e retry em caso de falha | Proteção dos dados | PREP-02 |
 | QA-05 | **DT-02 aprovada:** recarregar com confirmação, salvar edição local como nova nota ou cancelar mantendo conflito; detalhar detecção, arquivo ausente/renomeado, fechamento e concorrência | Proteção dos dados | PREP-02 |
-| QA-06 | Destino e semântica da exclusão (remoção definitiva ou lixeira), com tratamento de falhas | Segurança do usuário | PREP-02 |
+| QA-06 | **DT-03 aprovada:** enviar nota à lixeira após confirmação; se indisponível ou falhar, informar erro sem excluir definitivamente. Detalhar suporte GIO/Flatpak e validações pré-exclusão | Segurança do usuário | PREP-02 |
 | QA-07 | Comportamento em arquivos ausentes, ilegíveis, links simbólicos e concorrência entre instâncias | Robustez | PREP-02 |
 | QA-08 | Semântica de pesquisa (acentos, maiúsculas e correspondência parcial), empates de ordenação | Consistência de uso | PREP-02 |
 | QA-09 | Intervalo e condições de transparência aceitáveis, popovers/diálogos e contraste mínimo | Acessibilidade visual | PREP-02 |
@@ -401,6 +406,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-19 | Confirmar reconhecimento de `.md` existentes na raiz no primeiro acesso ou selecionar outra pasta; sem recursão |
 | DT-20 | Migrar: copiar tudo sem sobrescrever, validar antes de ativar destino, confirmar explicitamente antes de remover originais e verificar segurança |
 | DT-02 | Conflito externo: bloquear sobrescrita e oferecer recarregar com confirmação, salvar local como nova nota ou cancelar preservando o buffer |
+| DT-03 | Excluir nota: mover para lixeira após confirmação; sem exclusão permanente como fallback |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -408,6 +414,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 26 RFs, 16 RNFs, 15 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 26 RFs, 16 RNFs, 16 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
