@@ -202,7 +202,15 @@ A aplicação tenta concluir gravações pendentes na troca e no encerramento. E
 
 **Proposta:** um fingerprint efêmero composto por informações disponíveis do arquivo (por exemplo, tamanho, modificação, identidade do objeto e/ou hash) permite detectar mudanças usuais. Não é chave estável de domínio e não substitui coordenação atômica entre processos.
 
-Quando houver conflito, o sistema preservará a edição em memória e deverá disponibilizar forma segura de continuar. **Estratégia de resolução ainda não aprovada**: recarregar após confirmação, salvar como nova nota ou outra ação explícita. Nunca descartar silenciosamente a edição do usuário.
+**DT-02 aprovada (alternativa B) — resolução manual:** ao detectar que o arquivo aberto mudou, foi substituído, removido ou renomeado externamente desde a leitura, o `SaveCoordinator` suspende a publicação automática **daquela nota** e sinaliza `Conflict` à interface. A resolução oferece:
+
+1. **Recarregar versão externa:** reler a versão atualmente existente do disco, mostrando confirmação explícita antes de descartar qualquer alteração local pendente. Se o arquivo original não estiver disponível, apresentar erro/estado de arquivo ausente; não criar arquivo em seu lugar automaticamente.
+2. **Salvar edição local como nova nota:** criar outro arquivo Markdown com nome validado e **sugestão editável conforme DT-01**, usando operação que não sobrescreve destino existente. Preservar o arquivo externo intacto. Somente considerar a edição local salva após sucesso real da criação; se houver falha, conservar buffer e conflito.
+3. **Cancelar:** fechar a escolha de resolução sem perder a edição local; permanecer em `Conflict`, manter autosave bloqueado **para o arquivo afetado** e permitir nova tentativa de resolução.
+
+**Garantias:** a detecção de conflito e a criação de nova nota devem verificar o estado do filesystem na operação efetiva; uma checagem antecipada não elimina riscos de TOCTOU, abordados em DT-04/DT-09. A escolha de recarregar não significa mesclagem de textos; não há merge automático no MVP. O comando de salvar como nova nota **não deve salvar sobre o caminho da versão externa**. A interface não pode apresentar `Clean/Salvo` antes da persistência confirmada. Troca de nota e encerramento respeitam RF-12/DT-06 quando existir buffer local conflitado.
+
+**Detalhes ainda abertos:** forma de identificar renomeação versus remoção, fingerprint efetivo, comportamento de múltiplas instâncias, controles de saída em estado `Conflict` e erro durante a opção de salvar como nova nota. Esses tópicos refinam a DT-02 sem alterar as três ações aprovadas.
 
 ## 6. Casos de uso e fluxo de operações
 
@@ -211,7 +219,7 @@ Quando houver conflito, o sistema preservará a edição em memória e deverá d
 | Criar | Validar título, sugerir alternativa editável em colisão, coordenar seleção e salvar | Criação sem sobrescrita na pasta ativa | Nome duplicado, I/O |
 | Listar | Ordenar e filtrar metadados, respeitando a confirmação inicial DT-19 | Detecção/enumeração controlada sem mutação | Entrada inválida, recusa ou escolha de outra pasta |
 | Selecionar | Proteger edição pendente anterior | Leitura condicionada | Arquivo removido |
-| Editar | Atualizar revisão, agendar autosave | Nenhuma escrita direta pela UI | Falha posterior de gravação |
+| Editar | Atualizar revisão e agendar autosave; em conflito externo, bloquear publicação e solicitar decisão (DT-02) | Nenhuma escrita direta pela UI; verificar estado esperado antes de publicar | Falha de gravação, edição externa ou arquivo ausente |
 | Renomear | Coordenar salvamento e referência mutável | Renomeação sem colisão | Conflito externo |
 | Excluir | Confirmar, verificar revisão e remover | Operação condicionada | Cancelamento/falha |
 | Buscar | Filtrar notas carregadas por título | Não exige índice | Nenhum resultado |
@@ -336,7 +344,7 @@ Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificaç
 | Domínio | seleção/revisão, regras independentes de GTK, erros previsíveis |
 | Salvamento | debounce, reordenação de resultados, revisão nova durante I/O, retry |
 | Filesystem | escrita temporária, substituição, falha simulada, arquivo removido, acesso negado |
-| Conflito | modificação externa, destino ocupado, rename/delete concorrentes |
+| Conflito | alteração externa, arquivo removido/renomeado, autosave bloqueado, recarregar com confirmação, salvar como nova nota respeitando DT-01, cancelar e preservar buffer; falha de I/O durante resolução |
 | Busca/ordem | correspondência por título, mudança de mtime e empates |
 | Preferências | defaults, leitura/atualização, restauração, pasta de notas e entrada inválida |
 | Diretório de notas | XDG Documentos em instalações pt-BR/en-US; pasta inexistente, acesso negado, seleção alternativa, restauro após reinício, arquivos `.md` preexistentes |
@@ -378,12 +386,11 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 
 ## 12. Decisões técnicas pendentes — não aprovadas
 
-**Decisões concluídas:** **DT-01 — alternativa B:** para título duplicado, sugerir nome disponível e permitir aceitar ou editar, sem sobrescrever. **DT-17 — alternativa C:** ao trocar a pasta ativa, oferecer escolha entre **manter notas na origem** ou **migrá-las**, sem movimentação silenciosa. **DT-19 — alternativa B:** confirmar no primeiro acesso o reconhecimento de arquivos `.md` preexistentes na raiz ou escolher outra pasta, sem recursão e sem alterar os arquivos. **DT-20 — alternativa B:** copiar todas as notas e validar integralmente antes de ativar o novo diretório; remover os originais somente após confirmação explícita adicional e verificações de segurança. Não prometer atomicidade global; detalhar recuperação de falhas parciais. A persistência da confirmação DT-19 será refinada separadamente.
+**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
 
 | Prioridade | ID | Decisão a tomar | Alternativas a investigar |
 | --- | --- | --- | --- |
 
-| Crítica | DT-02 | Resolução de conflitos externos sem sobrescrita | bloquear e oferecer recarregar/salvar como / cópia |
 | Crítica | DT-03 | Exclusão de nota | lixeira / exclusão definitiva com confirmação |
 | Crítica | DT-04 | Proteção contra concorrência de processos e operações filesystem | instância única / coordenação operacional / bloqueio e detecção |
 | Alta | DT-05 | Política exata de debounce, flushing, sincronização e confirmação de salvamento | limites e operações suportadas pelo SO |
@@ -401,13 +408,13 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | Alta | DT-18 | Permissões e operações na pasta padrão e alternativa com Flatpak | `xdg-documents` + portal; verificar persistência e escrita atômica em FUSE |
 | Média | DT-21 | Como lembrar a confirmação inicial da DT-19 por pasta | GSettings com referência à pasta / confirmação por sessão; sem criar índice de notas |
 
-**Recomendação de refinamento:** DT-01, DT-17, DT-19 e DT-20 estão aprovadas. Prosseguir para **DT-02 — resolução de conflitos externos**, depois DT-03 e DT-04, uma questão de integridade por vez. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
+**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20 e DT-02 estão aprovadas. Prosseguir para **DT-03 — política de exclusão**, depois DT-04 — concorrência entre processos, uma decisão por vez. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
 
 ## 13. Critérios de conclusão da PREP-02
 
 Para declarar a PREP-02 aprovada, precisamos:
 1. Verificar cobertura de RF-01–RF-26 e RNF-01–RNF-16.
-2. Incorporar as DT-01, DT-17, DT-19 e DT-20 aprovadas e resolver DT-02–04, sem reabrir as ADRs desnecessariamente.
+2. Incorporar as DT-01, DT-17, DT-19, DT-20 e DT-02 aprovadas e resolver DT-03 e DT-04, sem reabrir as ADRs desnecessariamente.
 3. Estabelecer contratos operacionais de salvamento, renomeação, exclusão, troca de pasta e exportação suficientemente testáveis.
 4. Definir a versão de runtime/SDK e principais dependências durante o planejamento, antes da implementação que delas dependa; considerar a validação de permissões e publicação atômica em pastas selecionadas.
 5. Definir limites verificáveis de acessibilidade e falhas.
