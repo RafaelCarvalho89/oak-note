@@ -221,7 +221,7 @@ A aplicação tenta concluir gravações pendentes na troca e no encerramento. E
 | Selecionar | Proteger edição pendente anterior | Leitura condicionada | Arquivo removido |
 | Editar | Atualizar revisão e agendar autosave; em conflito externo, bloquear publicação e solicitar decisão (DT-02) | Nenhuma escrita direta pela UI; verificar estado esperado antes de publicar | Falha de gravação, edição externa ou arquivo ausente |
 | Renomear | Coordenar salvamento e referência mutável | Renomeação sem colisão | Conflito externo |
-| Excluir | Confirmar, verificar revisão e remover | Operação condicionada | Cancelamento/falha |
+| Excluir | Confirmar, resolver edições pendentes, verificar identidade operacional/fingerprint e aplicar DT-03 | Tentar mover arquivo selecionado para a lixeira; sem fallback destrutivo | Cancelamento, alteração externa, lixeira não suportada e falha de I/O |
 | Buscar | Filtrar notas carregadas por título | Não exige índice | Nenhum resultado |
 | Exportar | Coordenar lista e progresso | Cópia `.md` com destino do usuário | Parcial, colisões, permissões |
 | Alterar diretório | Validar pasta/edições pendentes, oferecer **manter ou migrar** (DT-17), coordenar cópia e validação integral (DT-20) | Seleção via portal, cópia sem sobrescrita, verificação, ativação segura e remoção posterior com confirmação | Pasta indisponível, cancelamento, nomes ocupados, conteúdo divergente, cópia ou limpeza parcial |
@@ -242,9 +242,22 @@ A migração é distinta da exportação e da escolha de **manter notas na pasta
 
 **Aspectos ainda pendentes de desenho/teste:** necessidade e formato mínimo de estado operacional recuperável após crash, isolamento diante de outras instâncias/processos, autorização do portal persistida, comportamento em cópia parcial e retentativa idempotente (evitar sobrescrever arquivos previamente criados), sem adicionar índice de metadados das notas. Detalhar sem criar framework de migração genérico.
 
-### 6.2. Exclusão (QA-06)
+### 6.2. Exclusão individual pela lixeira — DT-03 aprovada (alternativa A)
 
-**Aberto:** mover para lixeira ou apagar definitivamente. O MVP deve confirmar exclusão e preservar outros arquivos, mas não se deve presumir recuperação se o armazenamento privado não fornecer integração de lixeira. A decisão afeta UX e testes de erro.
+A exclusão solicitada pelo usuário deve **mover o arquivo Markdown selecionado para a lixeira**, após confirmação. Se a lixeira não estiver disponível, a operação não for suportada ou falhar, **informar o erro e não apagar definitivamente o arquivo**. Não implementar `unlink`/remoção permanente como fallback de exclusão individual.
+
+**Fluxo de referência:**
+1. Identificar o arquivo selecionado e tratar operações de salvamento em andamento, revisões locais não persistidas e eventual estado `Conflict`; nunca considerar um buffer não salvo como seguramente descartável.
+2. Verificar a versão/caminho esperados antes da solicitação de envio à lixeira; se o arquivo tiver sido alterado, substituído, removido ou renomeado externamente, suspender a ação e aplicar a política de conflito **DT-02** em vez de remover um arquivo inesperado.
+3. Solicitar confirmação explícita para **Mover para a lixeira**, sem linguagem de exclusão definitiva.
+4. Executar a operação de lixeira no adaptador de filesystem, considerando API GIO/GFile de trash como candidata, **sem assumir suporte universal em sistemas de arquivos e nas pastas selecionadas por portal Flatpak**.
+5. Somente após sucesso da operação, retirar a nota da lista e limpar seleção/estado associado; em caso de erro, manter o item e comunicar o resultado, sem exclusão definitiva alternativa.
+
+**Limite importante:** uma verificação de fingerprint seguida de `trash` não é uma operação condicional atômica. Entre as duas ações, outro processo ainda pode modificar/substituir o caminho (**TOCTOU**). DT-04/DT-09 deverão considerar exclusividade de instância e redução de risco, e testes precisam evidenciar os limites reais da plataforma. Não prometer a impossibilidade absoluta de conflito externo sem garantias efetivas do SO.
+
+**Testes:** confirmação/cancelamento, sucesso do trash, falha de permissão, backend sem lixeira, filesystem montado com comportamento diferente, Flatpak com pasta selecionada via portal, revisões pendentes, conflito por edição externa, caminho renomeado e ausência de fallback destrutivo.
+
+**Distinção de escopo:** DT-03 aplica-se à **exclusão individual da nota pelo usuário**. A remoção dos originais após a migração aprovada na DT-20 é outro fluxo, exigindo confirmação adicional e verificações de segurança; sua política operacional precisa ser refinada sem assumir automaticamente que usa o mesmo mecanismo de lixeira.
 
 ### 6.3. Exportação (QA-11)
 
@@ -344,6 +357,7 @@ Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificaç
 | Domínio | seleção/revisão, regras independentes de GTK, erros previsíveis |
 | Salvamento | debounce, reordenação de resultados, revisão nova durante I/O, retry |
 | Filesystem | escrita temporária, substituição, falha simulada, arquivo removido, acesso negado |
+| DT-03 — lixeira | Confirmação/cancelamento, sucesso, lixeira não suportada, acesso negado, pasta via portal, item alterado externamente, nenhuma exclusão permanente como fallback |
 | Conflito | alteração externa, arquivo removido/renomeado, autosave bloqueado, recarregar com confirmação, salvar como nova nota respeitando DT-01, cancelar e preservar buffer; falha de I/O durante resolução |
 | Busca/ordem | correspondência por título, mudança de mtime e empates |
 | Preferências | defaults, leitura/atualização, restauração, pasta de notas e entrada inválida |
@@ -386,12 +400,11 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 
 ## 12. Decisões técnicas pendentes — não aprovadas
 
-**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
+**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
 
 | Prioridade | ID | Decisão a tomar | Alternativas a investigar |
 | --- | --- | --- | --- |
 
-| Crítica | DT-03 | Exclusão de nota | lixeira / exclusão definitiva com confirmação |
 | Crítica | DT-04 | Proteção contra concorrência de processos e operações filesystem | instância única / coordenação operacional / bloqueio e detecção |
 | Alta | DT-05 | Política exata de debounce, flushing, sincronização e confirmação de salvamento | limites e operações suportadas pelo SO |
 | Alta | DT-06 | Comportamento de saída/troca com alteração não salva | impedir fluxo / preservar temporário ou cópia / confirmação explícita |
@@ -408,13 +421,13 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | Alta | DT-18 | Permissões e operações na pasta padrão e alternativa com Flatpak | `xdg-documents` + portal; verificar persistência e escrita atômica em FUSE |
 | Média | DT-21 | Como lembrar a confirmação inicial da DT-19 por pasta | GSettings com referência à pasta / confirmação por sessão; sem criar índice de notas |
 
-**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20 e DT-02 estão aprovadas. Prosseguir para **DT-03 — política de exclusão**, depois DT-04 — concorrência entre processos, uma decisão por vez. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
+**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02 e DT-03 estão aprovadas. Prosseguir para **DT-04 — concorrência entre processos e instâncias**, uma decisão por vez. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
 
 ## 13. Critérios de conclusão da PREP-02
 
 Para declarar a PREP-02 aprovada, precisamos:
 1. Verificar cobertura de RF-01–RF-26 e RNF-01–RNF-16.
-2. Incorporar as DT-01, DT-17, DT-19, DT-20 e DT-02 aprovadas e resolver DT-03 e DT-04, sem reabrir as ADRs desnecessariamente.
+2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02 e DT-03 aprovadas e resolver DT-04, sem reabrir as ADRs desnecessariamente.
 3. Estabelecer contratos operacionais de salvamento, renomeação, exclusão, troca de pasta e exportação suficientemente testáveis.
 4. Definir a versão de runtime/SDK e principais dependências durante o planejamento, antes da implementação que delas dependa; considerar a validação de permissões e publicação atômica em pastas selecionadas.
 5. Definir limites verificáveis de acessibilidade e falhas.
