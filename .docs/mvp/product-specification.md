@@ -106,7 +106,9 @@ A substituição atômica não significa garantia absoluta contra perda de dados
 - Preferências: tema, transparência, visibilidade da barra lateral, diretório de armazenamento selecionado e **conjunto de diretórios previamente confirmados na DT-19**, persistido em GSettings conforme DT-21;
 - Estado operacional: dimensões, maximização e última nota selecionada.
 
-O conteúdo das notas não fica no GSettings. A posição absoluta da janela não será persistida nem controlada no Wayland.
+**DT-15 aprovada (alternativa A):** adotar **um único esquema GSettings**, `io.github.rafaelcarvalho89.oaknote`, com **chaves e tipos definidos, valores padrão seguros e versão lógica de preferências**. As preferências padrão são tema `system`, transparência `0%`, lateral manual visível, pasta XDG Documentos resolvida em tempo de execução, nenhuma pasta previamente confirmada, janela inicialmente `800 × 560` (apenas **dimensão inicial candidata**, não mínimo da DT-11), não maximizada e sem última nota selecionada. A versão lógica inicial é **1**, com marcador de inicialização `0` para registros não inicializados. Alterações incompatíveis futuras requerem **migrações explícitas, incrementais e idempotentes**, preservando preferências válidas; nenhuma migração histórica é exigida para o primeiro release.
+
+**Recuperação segura:** valor inválido de tema/transparência/dimensões utiliza comportamento padrão válido, sem resetar outras chaves. Referência de pasta inválida, removida ou sem autorização **não gera troca silenciosa de diretório nem reconhecimento de notas** (DT-18/DT-21); solicitar correção/reautorização. Entrada de confirmação inválida não equivale a consentimento. Versão de configuração futura/desconhecida não pode ser rebaixada ou sobrescrita silenciosamente. O conteúdo das notas não fica no GSettings, e a posição absoluta da janela não será persistida nem controlada no Wayland.
 
 ### 4.4. Estilo e sobreposição
 
@@ -190,7 +192,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** o aplicativo pode ser iniciado normalmente pelo comando de instalação e a documentação explica a configuração do atalho no GNOME. Não exige registrar um hotkey global.
 
 **RF-22 — Preferências.** Disponibilizar janela nativa com configurações de tema, transparência e diretório de notas, integrada ao estado da aplicação.  
-**Aceite:** alterações de preferência refletem-se na interface e persistem via GSettings; o diretório atual é identificado de modo compreensível e pode ser alterado por seletor de pastas; estado operacional não precisa ter controles editáveis.
+**Aceite:** alterações persistem por **chaves GSettings tipadas**, com valores padrão validados, versão lógica de configurações e migração explicitamente definida apenas quando uma versão futura exigir incompatibilidade (DT-15). Preferências válidas não são apagadas por causa de outra chave inválida. Pasta indisponível ou sem autorização exige tratamento explícito e não muda silenciosamente o destino nem o consentimento de reconhecimento; `sidebar-visible` guarda somente a intenção manual (DT-11). O diretório atual é identificado de modo compreensível e alterado por seletor; estado operacional não exige controles editáveis.
 
 ### 5.4. Dados, idioma e distribuição
 
@@ -228,7 +230,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 | RNF-13 | Integração contínua | GitHub Actions executa Fmt, Clippy e testes; DT-08: registrar a versão do Rust stable efetivamente utilizada e validar compatibilidade com SDK GNOME 51, sem pressupor versão de compilador fixa |
 | RNF-14 | Distribuição controlada | Versão SemVer, `CHANGELOG.md`, Flatpak com GNOME Platform/SDK 51 e Rust stable não fixado; registrar versões e componentes do build, validar mudanças e exigir release aprovada manualmente |
 | RNF-15 | Arquitetura proporcional | Organização **feature-based**; um crate Rust; arquitetura modular com limites hexagonais seletivos; aplicar SOLID, YAGNI e DRY de forma contextual, sem interfaces ou camadas artificiais |
-| RNF-16 | Preferências persistentes | Um esquema GSettings versionado, distribuído corretamente e testado no Flatpak |
+| RNF-16 | Preferências persistentes | DT-15: esquema GSettings único, chaves tipadas, defaults seguros, versão lógica `1` e migrações futuras explícitas/idempotentes somente para incompatibilidades; preservar valores válidos, tratar dados inválidos sem perda de notas e testar dentro/fora do Flatpak |
 
 Os RNFs 05 e 06 não estabelecem, nesta etapa, garantias absolutas de durabilidade ou metas numéricas de latência; essas garantias devem ser refinadas e testadas na PREP-02.
 
@@ -381,6 +383,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-29 — Arquivos inesperados e links simbólicos (DT-14):** em diretório com `.md` regular, symlink para nota interna, symlink para destino externo, symlink quebrado, pasta com nome terminado em `.md`, FIFO/socket e arquivo não Markdown, listar apenas notas regulares da raiz sem percorrer subdiretórios nem seguir links. Informar discretamente entradas `.md` excluídas e preservar integralmente as demais; criar/renomear para caminho ocupado por symlink não sobrescreve o link ou seu destino (DT-01). Testar troca externa entre enumeração e leitura/salvamento/lixeira/exportação/migração, bloqueando ações inseguras e comunicando erro/conflito conforme DT-02/DT-09; não atribuir garantia de ausência de TOCTOU.
 
+**CA-30 — Defaults, versão e recuperação do GSettings (DT-15):** iniciar com esquema sem valores personalizados, conferir valores padrão e diretório XDG Documentos resolvido em execução; persistir preferências e estados, reiniciar e validar restauração. Injetar tema inválido, transparência fora da faixa, dimensões impraticáveis, referência de nota inexistente, lista de diretórios confirmados com registros inválidos e pasta via portal sem autorização: aplicar fallback ou solicitar reautorização sem trocar pasta silenciosamente nem apagar outras preferências. Validar versão lógica inicial `1`, inicialização `0`, migração futura simulada interrompida/repetida sem duplicar efeitos, preservação de dados válidos e bloqueio seguro para versão desconhecida; sem migração histórica fictícia no v0.1.0.
+
 **Nota de escopo:** a DT-03 rege a **exclusão individual solicitada pelo usuário**. A limpeza de arquivos de origem após uma migração confirmada continua sujeita à DT-20, com política operacional própria a ser refinada.
 
 Esses cenários devem ser transformados em testes e checklists detalhados nas próximas etapas.
@@ -436,7 +440,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-09 | **DT-10 aprovada:** transparência inicial de 0–70% nos fundos da janela principal e superfícies auxiliares opacas; validar contraste/legibilidade real, reduzindo máximo se necessário; detalhar testes e critérios visuais verificáveis | Acessibilidade visual | PREP-02 |
 | QA-10 | **DT-11 aprovada:** recolhimento automático da barra lateral em janela estreita e prioridade ao editor, independente do estado manual persistido; validar mínimo de largura/altura, breakpoint, navegação/teclado, escala e locais pt-BR/en-US | Usabilidade | PREP-02 |
 | QA-11 | **DT-07 aprovada:** continuar após colisões e falhas individuais recuperáveis, sem sobrescrever; relatar exportados, ignorados, erros e cancelamentos. Detalhar cópia segura, resultados incertos, destino igual à origem e erros que impedem continuar | Proteção das cópias | PREP-02 |
-| QA-12 | Detalhes de GSettings, esquema de versão, valores padrão e fallback de idioma | Persistência | PREP-02 |
+| QA-12 | **DT-15 aprovada:** esquema único com chaves tipadas, defaults, versão lógica e migrações incompatíveis futuras; refinar URI/identidade de pastas, validar valores inválidos, versão futura e persistência no Flatpak. Idioma continua seguindo GNOME/gettext, não uma preferência nova | Persistência | PREP-02 |
 | QA-13 | **DT-08 aprovada:** GNOME Platform/SDK 51 e Rust stable não fixado; exigir diagnóstico do compilador e validação da extensão SDK, dependências e funcionamento no host. Metadados definitivos e matriz de compatibilidade devem ser concluídos antes de M1/release | Distribuição | PREP-02 |
 | QA-14 | **DT-12 aprovada:** `Ctrl+N`, `Ctrl+F`, `F9`, `Ctrl+,` e `Esc` contextual; testar conflitos de foco/GTK e documentação de atalho GNOME externo | Acessibilidade | PREP-02 |
 | QA-15 | **DT-17/DT-20 aprovadas:** oferecer manter ou migrar; migração por cópia integral e verificação antes de ativar destino, com confirmação adicional antes da remoção. Detalhar recuperação, falhas parciais e concorrência externa | Integridade e experiência | PREP-02 |
@@ -472,6 +476,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-12 | Busca parcial somente em títulos com Unicode canônico + case folding, mantendo acentos significativos; atalhos internos GNOME `Ctrl+N`, `Ctrl+F`, `F9`, `Ctrl+,`, `Esc` contextual, sem captura global |
 | DT-13 | Ordenar por `mtime` real decrescente, colocar notas sem `mtime` ao final; desempatar por título Unicode normalizado e caminho físico determinístico, sem depender do locale ou da ordem de enumeração |
 | DT-14 | Reconhecer somente `.md` regulares na raiz e não seguir symlinks; ignorar entradas especiais ou diretórios, avisar discretamente sobre entradas relevantes descartadas e nunca modificá-las; revalidar antes das operações |
+| DT-15 | Esquema GSettings único, chaves tipadas e defaults seguros, versão lógica inicial 1; somente mudanças incompatíveis exigem migração explícita/idempotente, sem apagar preferências válidas nem converter confirmação em autorização do portal |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -479,6 +484,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 29 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 30 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
