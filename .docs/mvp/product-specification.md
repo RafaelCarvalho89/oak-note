@@ -82,6 +82,8 @@ O caminho da nota **não é uma identidade imutável**: a renomeação altera o 
 
 **DT-19 aprovada (alternativa B):** no primeiro acesso a uma pasta que já contenha arquivos `.md` diretamente na **raiz**, o Oak Note informa que esses arquivos serão reconhecidos como notas e solicita confirmação. O usuário pode aceitar ou escolher outra pasta. Não há busca em subdiretórios, cópia/importação nem alteração de arquivos por causa desse reconhecimento. A forma de lembrar a confirmação por pasta será refinada na PREP-02.
 
+**DT-18 aprovada (alternativa A):** a distribuição Flatpak solicita acesso estático de leitura e escrita **apenas ao diretório XDG Documentos**, que é a pasta padrão. Para outras pastas, o usuário autoriza o acesso por seletor integrado ao **portal de arquivos**, sem ampliar permissões automaticamente para `home`, `host` ou destinos arbitrários. A aplicação deve **validar operações reais de leitura, listagem, criação, gravação/substituição segura, renomeação, envio à lixeira e acesso persistente entre sessões** antes de ativar a nova pasta. Se alguma capacidade obrigatória falhar, informar a limitação e manter o diretório anterior; o comportamento real depende de validação no Flatpak e não está tecnicamente comprovado.
+
 ### 4.2. Integridade e concorrência
 
 **ADR-03:** o salvamento automático usa debounce, arquivo temporário no mesmo diretório, substituição atômica quando suportada, escrita serializada por nota e tratamento explícito de falhas. Revisões antigas não podem substituir conteúdo mais recente.
@@ -200,7 +202,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** artefato Flatpak da versão `0.1.0` pode ser instalado, aberto e encerrado no ambiente de referência; Application ID é `io.github.rafaelcarvalho89.oaknote`; publicação exige aprovação e inclui notas de versão.
 
 **RF-26 — Configurar diretório das notas.** Por padrão, utilizar a pasta XDG **Documentos** do usuário e permitir selecionar outro diretório para o conjunto de notas gerenciado.  
-**Aceite:** em instalação inicial, o aplicativo reconhece a pasta Documentos configurada pelo sistema; exibe o diretório ativo; permite selecionar pasta alternativa e persiste a seleção; restaura o diretório escolhido ao reiniciar; informa indisponibilidade e ausência de permissão sem redirecionar ou perder notas silenciosamente. Ao trocar de pasta, **oferece escolha explícita entre manter as notas na origem e migrá-las**, sem movimentação ou remoção silenciosa. **Se a pasta selecionada contiver arquivos `.md` preexistentes na raiz, aplicar a confirmação da DT-19 antes de reconhecê-los como notas.** Na opção **migrar**, copiar sem sobrescrever arquivos existentes, conferir todas as cópias antes de ativar o novo destino e solicitar confirmação explícita antes de remover originais. Revalidar as condições de exclusão e preservar qualquer original cuja remoção não seja segura. Falhas, conflitos e cancelamentos precisam preservar os dados e ser comunicados.
+**Aceite:** em instalação inicial, o aplicativo reconhece a pasta Documentos configurada pelo sistema; exibe o diretório ativo; utiliza o acesso Flatpak limitado a XDG Documentos e permite selecionar outra pasta mediante autorização do usuário pelo portal (DT-18). **Antes de ativar uma pasta alternativa, verifica as capacidades obrigatórias de gerenciamento e persistência do acesso**; se não forem comprovadas, mantém a pasta anterior e comunica o motivo, sem solicitar acesso amplo à `home`. Exibe e persiste a seleção válida e a restaura ao reiniciar; indisponibilidade ou perda posterior da autorização exige reautorização ou nova escolha, sem redirecionamento silencioso. Ao trocar de pasta, **oferece escolha explícita entre manter as notas na origem e migrá-las**, sem movimentação ou remoção silenciosa. **Se a pasta selecionada contiver arquivos `.md` preexistentes na raiz, aplicar a confirmação da DT-19 antes de reconhecê-los como notas.** Na opção **migrar**, copiar sem sobrescrever arquivos existentes, conferir todas as cópias antes de ativar o novo destino e solicitar confirmação explícita antes de remover originais. Revalidar as condições de exclusão e preservar qualquer original cuja remoção não seja segura. Falhas, conflitos e cancelamentos precisam preservar os dados e ser comunicados.
 
 **RF-27 — Reativar instância existente.** Manter uma instância ativa por sessão do Oak Note, com uma janela principal para todas as notas (DT-04).  
 **Aceite:** iniciar o Oak Note novamente na mesma sessão reativa a janela já existente, sem outro editor independente; conteúdo e estados de salvamento não são reinicializados ou descartados. Falhas de ativação são comunicadas sem presumir exclusividade sobre outros programas ou sessões.
@@ -218,7 +220,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 | RNF-07 | Acessibilidade de teclado | Funções essenciais sem mouse, foco visível e navegação consistente |
 | RNF-08 | Tecnologias assistivas | Verificação manual básica com Orca de controles e estados |
 | RNF-09 | Contraste e legibilidade | Testar texto, seleção, cursor e controles em Claro/Escuro e níveis suportados de transparência |
-| RNF-10 | Mínimo privilégio | Flatpak oferece acesso necessário à pasta XDG Documentos e, para outras pastas, acesso autorizado pelo usuário/portal quando viável; não requer acesso amplo à home, rede nem D-Bus irrestrito sem justificativa |
+| RNF-10 | Mínimo privilégio | Flatpak com `--filesystem=xdg-documents` (leitura/escrita dentro de Documentos), demais pastas somente via seleção e autorização explícita pelo portal; não solicitar `home`/`host`, rede ou D-Bus irrestrito como fallback; operações e persistência exigem validação prática (DT-18) |
 | RNF-11 | Observabilidade local | Logs estruturados de falha e diagnóstico sem conteúdo das notas, credenciais ou dados sensíveis |
 | RNF-12 | Testabilidade | Testes unitários das regras e integração do filesystem, inclusive falhas e conflitos |
 | RNF-13 | Integração contínua | GitHub Actions executa Fmt, Clippy e testes para alterações propostas |
@@ -281,7 +283,7 @@ Os RNFs 05 e 06 não estabelecem, nesta etapa, garantias absolutas de durabilida
 ### UC-07 — Configurar pasta de notas
 1. Usuário acessa Preferências e consulta a pasta de armazenamento ativa.
 2. Seleciona outro diretório usando seletor de pastas do sistema.
-3. O aplicativo valida disponibilidade e permissão de leitura/gravação.
+3. O aplicativo valida disponibilidade e autorização por portal para a nova pasta e verifica operações de gerenciamento necessárias; se alguma capacidade obrigatória não funcionar, explica a limitação, conserva o diretório anterior e não amplia as permissões do Flatpak (DT-18).
 4. Se o novo diretório já possuir arquivos `.md` na raiz e for seu primeiro acesso, informa que eles serão reconhecidos como notas e exige confirmação ou a escolha de outra pasta (DT-19).
 5. Apresenta opção explícita de **manter as notas na pasta anterior** ou **migrá-las para a pasta selecionada**.
 6. Ao escolher manter, preserva integralmente os arquivos de origem e passa a utilizar a pasta de destino.
@@ -328,6 +330,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 **CA-05 — Alteração externa:** modificar, remover ou substituir uma nota fora do Oak Note durante sua edição; confirmar bloqueio do autosave no caminho afetado e apresentação das três ações da DT-02. Recarregar não descarta alterações locais sem confirmação; salvar como nova nota respeita DT-01 e preserva a versão externa; cancelar mantém a edição e o conflito pendentes.
 
 **CA-20 — Fingerprint de alterações externas (DT-09):** carregar arquivo e comparar metadados e hash sob demanda antes de salvar, renomear, enviar à lixeira e remover originais em migração. Detectar conteúdo alterado com **mesmo tamanho e mtime**, substituição do arquivo por outro, remoção e erro de leitura, sem operação destrutiva automática. Testar que o fingerprint é atualizado após gravação confirmada da revisão correta, que a edição permanece em memória no conflito e que a verificação não é apresentada como bloqueio atômico contra outros processos.
+
+**CA-21 — Permissões Flatpak e pastas alternativas (DT-18):** validar acesso à pasta XDG Documentos sem acesso irrestrito à `home`; escolher uma pasta alternativa via portal, verificar listagem, leitura, criação, escrita, renomeação, salvamento seguro com temporário/sync quando suportado, lixeira e persistência da autorização após reiniciar. Testar permissão negada, pasta inacessível ou desmontada, destino via FUSE, recurso não suportado e revogação de autorização: comunicar o problema, preservar notas e manter o destino anterior ao impedir uma troca. Não ampliar permissões silenciosamente.
 
 **CA-06 — Arquivos portáveis:** inspecionar arquivos criados/renomeados em editor externo; confirmar Markdown puro e título coerente com o nome físico.
 
@@ -416,7 +420,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-13 | Versão final suportada do SDK/runtime Flatpak, permissões e metadados definitivos | Distribuição | PREP-02 |
 | QA-14 | Mapeamento final dos atalhos internos e orientação do atalho no GNOME | Acessibilidade | PREP-02 |
 | QA-15 | **DT-17/DT-20 aprovadas:** oferecer manter ou migrar; migração por cópia integral e verificação antes de ativar destino, com confirmação adicional antes da remoção. Detalhar recuperação, falhas parciais e concorrência externa | Integridade e experiência | PREP-02 |
-| QA-16 | Permissões do Flatpak/portal, localização XDG Documentos indisponível e **persistência da confirmação DT-19 por pasta**, sem índice de notas | Acesso a dados | PREP-02 |
+| QA-16 | **DT-18 aprovada:** acesso estático só a XDG Documentos e portal para demais pastas; validar capacidades e persistência antes da troca. Detalhar fallback sem ampliar permissões e **DT-21:** lembrar confirmação DT-19 por pasta, sem índice de notas | Acesso a dados | PREP-02 |
 
 ## 13. Rastreabilidade e diretrizes aprovadas
 
@@ -439,6 +443,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-05 | Salvamento reforçado: sync do temporário, substituição atômica quando suportada, sync de diretório quando disponível e distinção entre publicação e durabilidade comprovada |
 | DT-06 | Antes de trocar ou encerrar, tentar salvar; em erro ou resultado incerto, oferecer retry, cancelar para editar ou descartar mediante confirmação; conflitos seguem DT-02 |
 | DT-09 | Detectar alterações externas com metadados + hash do conteúdo em memória, comparados sob demanda antes de operações destrutivas; sem monitoramento contínuo obrigatório |
+| DT-18 | Flatpak: acesso estático somente a XDG Documentos; portal para pastas alternativas, com validação efetiva das operações e autorização persistente; sem ampliação automática de permissões |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -446,6 +451,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 20 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 21 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
