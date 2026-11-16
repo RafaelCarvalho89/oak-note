@@ -1,0 +1,377 @@
+# Oak Note — Especificação do Produto (MVP v0.1.0)
+
+> **Estado:** RASCUNHO — PREP-01, aguardando revisão e aprovação.  
+> **Última atualização:** 2026-11-16  
+> **Produto:** Oak Note  
+> **Repositório principal:** https://github.com/RafaelCarvalho89/oak-note  
+> **Documento:** `.docs/mvp/product-specification.md`  
+> **Próxima etapa:** PREP-02 — Especificação técnica e arquitetura
+
+## 1. Objetivo e fontes de decisão
+
+Este documento consolida o escopo de produto do **Oak Note v0.1.0** a partir das **21 decisões do briefing** e das **ADRs 01–07**, aprovadas durante o planejamento. Define **o que** o MVP deverá entregar e quais comportamentos serão aceitos, sem antecipar detalhes técnicos de implementação ou iniciar desenvolvimento.
+
+As POCs 00–04 serviram de investigação técnica, e o responsável pelo projeto confirmou a validação manual no Debian/GNOME/Wayland e a instalação Flatpak. Os relatórios experimentais podem registrar estados anteriores dessa validação. Essa confirmação não constitui uma exigência de reutilizar integralmente o código da POC.
+
+**Precedência:** em caso de divergência, prevalecem as escolhas explícitas mais recentes do briefing e das ADRs. Assuntos não decididos estão identificados em [Questões abertas](#12-questões-abertas-para-refinamento), sem serem tratados como requisitos aprovados.
+
+## 2. Visão do produto
+
+O Oak Note é um **bloco de anotações Open Source, nativo para Linux**, projetado para registrar e consultar informações rapidamente, com uma interface discreta e intuitiva. O diferencial é a possibilidade de manter a janela acima de outras aplicações, através do controle **manual do GNOME**, combinada com transparência dos fundos e texto legível.
+
+**Proposta de valor:** permitir que uma pessoa consulte ou edite suas notas Markdown enquanto trabalha em outros aplicativos, sem depender de nuvem, conta ou ferramenta complexa de organização.
+
+**Plataforma primária:** Debian + GNOME em sessão Wayland.  
+**Stack estabelecida no planejamento:** Rust, GTK4 e libadwaita.  
+**Licença:** MIT.  
+**Modelo de distribuição inicial:** código-fonte e Flatpak publicado no GitHub Releases, com publicação controlada.  
+**Idioma da interface:** português brasileiro e inglês, acompanhando automaticamente o idioma do sistema.
+
+### 2.1. Público-alvo e contexto de uso
+
+Pessoas que usam Linux no trabalho ou no estudo e precisam manter pequenas notas de referência, ideias, tarefas ou textos acessíveis durante outras atividades. O produto não exige conhecimento de programação ou de Markdown para inserir texto, embora aceite sua sintaxe.
+
+### 2.2. Resultados esperados
+
+- Registrar uma anotação rapidamente e encontrá-la depois pelo título.
+- Evitar perda silenciosa de conteúdo durante salvamentos e encerramentos.
+- Permitir consulta de uma nota em janela compacta, com lista lateral ocultável.
+- Aplicar temas e transparência sem tornar texto e controles translúcidos.
+- Preservar arquivos `.md` legíveis e portáveis, sem serviços externos.
+
+Não foram estabelecidas métricas numéricas de adoção, desempenho ou retenção. Metas quantitativas só serão adicionadas mediante medição e decisão posterior.
+
+## 3. Escopo funcional aprovado
+
+| Área | Incluído no MVP | Limite do escopo |
+| --- | --- | --- |
+| Organização | Várias notas em **uma única janela** | Sem múltiplas janelas de notas |
+| Edição | Editor de **Markdown textual**, sem preview obrigatório | Sem editor rico/WYSIWYG |
+| Arquivos | Uma nota por `.md`, nome físico derivado do título | Sem SQLite ou índice auxiliar |
+| Gerenciamento | Criar, selecionar, renomear, excluir com confirmação | Sem pastas, tags ou favoritos |
+| Busca | Pesquisa rápida **por título** | Sem busca de conteúdo |
+| Ordenação | Mais recentemente modificada primeiro | Sem ordenação configurável |
+| Persistência | Autosave, gravação segura, controle de conflito e erros | Sem versões históricas automáticas |
+| Layout | Barra lateral recolhível e editor expandido | Sem interface definitiva de múltiplos painéis |
+| Janela | Redimensionamento, maximização e restauração de estado | Sem controle programático de posição |
+| Sobreposição | Ativação **manual** pelo GNOME | Sem extensão GNOME no MVP |
+| Aparência | Sistema/Claro/Escuro e transparência dos **fundos da janela principal**, inclusive cabeçalho | Sem tornar conteúdo translúcido ou habilitar click-through |
+| Preferências | Janela libadwaita com esquema GSettings único | Sem perfis de configuração |
+| Acesso rápido | Atalhos internos e atalho do GNOME configurado pelo usuário | Sem captura global de atalhos pelo aplicativo |
+| Exportação | Exportação manual de todas as notas Markdown | Sem sincronização ou backup automático |
+| Qualidade | Testes automatizados do núcleo, CI e testes manuais da UI | Sem exigência de suíte GUI automatizada |
+| Distribuição | Flatpak GitHub Releases e compilação pelo código-fonte | Flathub futuro, não incluído |
+
+## 4. Modelo conceitual e regras de negócio
+
+### 4.1. Nota
+
+Uma **nota** possui:
+- **Título**, derivado do nome físico do arquivo `.md`, sem a extensão;
+- **Conteúdo**, texto Markdown do arquivo;
+- **Caminho**, referência operacional ao arquivo correspondente;
+- **Última modificação**, derivada dos metadados do sistema de arquivos quando disponível.
+
+**ADR-01 e ADR-02:** o título origina o nome do arquivo; o Markdown permanece puro, sem YAML Front Matter, identificador interno persistente ou índice centralizado. A data histórica de criação não é garantida.
+
+O caminho da nota **não é uma identidade imutável**: a renomeação altera o nome físico. O MVP deve lidar com isso sem perder a nota aberta ou sobrescrever outra nota.
+
+### 4.2. Integridade e concorrência
+
+**ADR-03:** o salvamento automático usa debounce, arquivo temporário no mesmo diretório, substituição atômica quando suportada, escrita serializada por nota e tratamento explícito de falhas. Revisões antigas não podem substituir conteúdo mais recente.
+
+Se houver conflito com edição externa, renomeação ou arquivo de destino existente, a operação não pode sobrescrever silenciosamente dados. A política exata de resolução desses casos será detalhada na PREP-02.
+
+A substituição atômica não significa garantia absoluta contra perda de dados em falha de hardware ou energia, nem substitui backups.
+
+### 4.3. Preferências e estados
+
+**ADR-04:** utilizar um único esquema GSettings, com chaves separadas logicamente para:
+- Preferências: tema, transparência e visibilidade da barra lateral;
+- Estado operacional: dimensões, maximização e última nota selecionada.
+
+O conteúdo das notas não fica no GSettings. A posição absoluta da janela não será persistida nem controlada no Wayland.
+
+### 4.4. Estilo e sobreposição
+
+**ADR-07:** todos os **fundos da janela principal** — cabeçalho, editor e barra lateral — devem acompanhar a transparência configurada; os textos, ícones e controles permanecem opacos. Popovers, diálogos e janela de preferências não estão automaticamente incluídos nessa regra.
+
+O GTK não promete manter a janela sobre outras por API própria. A sobreposição é uma ação manual do usuário pelo ambiente GNOME e está sujeita ao comportamento do compositor.
+
+## 5. Requisitos funcionais (RF)
+
+Os critérios abaixo são condições de aceitação do produto. Não prescrevem APIs nem implementação específica.
+
+### 5.1. Notas, edição e pesquisa
+
+**RF-01 — Criar nota.** Permitir criar uma nova nota a partir da janela principal.  
+**Aceite:** a nota criada aparece na lista, torna-se selecionável/editável e é persistida como arquivo `.md` com nome válido; se o nome proposto conflitar, nenhuma nota existente é sobrescrita.
+
+**RF-02 — Listar notas.** Mostrar as notas gerenciadas pelo aplicativo.  
+**Aceite:** arquivos `.md` válidos do diretório gerenciado são apresentados com títulos derivados de seus nomes; arquivos desconhecidos não são alterados apenas pela listagem.
+
+**RF-03 — Selecionar nota.** Alternar entre notas da lista.  
+**Aceite:** selecionar uma nota carrega seu conteúdo no editor; alterações pendentes da nota anterior são tratadas conforme RF-10 e RF-12, sem descarte silencioso.
+
+**RF-04 — Editar texto Markdown.** Permitir inserir, alterar, copiar, selecionar e colar texto bruto.  
+**Aceite:** caracteres Unicode, quebras de linha e sintaxe Markdown são preservados no conteúdo salvo; não há exigência de renderização nem editor visual de formatação.
+
+**RF-05 — Renomear nota.** Alterar o título da nota e seu nome físico, segundo regras de nomes.  
+**Aceite:** após renomeação bem-sucedida a lista e a seleção refletem o novo nome; colisões, nomes inválidos e falhas não sobrescrevem outros arquivos nem eliminam o conteúdo anterior.
+
+**RF-06 — Excluir nota.** Oferecer exclusão mediante confirmação.  
+**Aceite:** cancelar mantém a nota intacta; confirmar remove a nota escolhida da lista e aplica o tratamento de arquivos definido na especificação técnica; nenhuma nota diferente é excluída.
+
+**RF-07 — Pesquisar por título.** Filtrar a lista pelo título.  
+**Aceite:** uma pesquisa mostra apenas notas correspondentes ao título; conteúdo textual que não esteja no título não é pesquisado; limpar a pesquisa restaura a listagem.
+
+**RF-08 — Ordenar notas.** Mostrar as notas da mais recentemente modificada para a menos recente.  
+**Aceite:** a listagem usa os metadados de modificação disponíveis no filesystem; alterações salvas podem mudar a posição da nota; empates e metadados indisponíveis têm tratamento determinístico a definir.
+
+### 5.2. Salvamento, conflitos e diagnóstico
+
+**RF-09 — Autosave.** Iniciar salvamento depois de um intervalo sem edição.  
+**Aceite:** alterações disparam um salvamento sem comando manual obrigatório; o intervalo exato será definido na PREP-02 (700 ms é sugestão, não compromisso fechado).
+
+**RF-10 — Salvar com segurança.** Evitar substituição parcial ou regressão para revisão antiga.  
+**Aceite:** operações de gravação da mesma nota são ordenadas; publicação utiliza arquivo temporário e substituição segura; falhas não marcam uma revisão não persistida como salva.
+
+**RF-11 — Comunicar estado de salvamento.** Exibir estados compreensíveis, como alteração pendente, salvando, salvo e falha.  
+**Aceite:** após falha aparece aviso perceptível, alterações pendentes são preservadas e há possibilidade de nova tentativa.
+
+**RF-12 — Proteger alterações ao alternar ou encerrar.** Não descartar dados alterados silenciosamente.  
+**Aceite:** ao trocar de nota ou fechar, o aplicativo tenta concluir as gravações pendentes; quando não for possível, apresenta alternativa segura ou confirmação explícita de eventual descarte, sem alegar que salvou.
+
+**RF-13 — Detectar conflitos externos.** Não sobrescrever modificações feitas fora do Oak Note sem tratamento.  
+**Aceite:** quando o arquivo foi alterado, substituído, removido ou renomeado externamente desde a leitura, operações potencialmente destrutivas identificam o conflito e evitam sobrescrita silenciosa.
+
+**RF-14 — Tratar erros de arquivo.** Comunicar falhas de leitura, gravação, renomeação, exclusão e exportação.  
+**Aceite:** o usuário recebe mensagem contextualizada; o aplicativo preserva, sempre que possível, o estado editável e não registra o conteúdo da nota nos logs.
+
+### 5.3. Navegação, janela e aparência
+
+**RF-15 — Barra lateral recolhível.** Permitir mostrar ou ocultar a lista de notas.  
+**Aceite:** ao recolher, o editor ganha espaço útil; ao expandir, a navegação retorna sem perder o texto.
+
+**RF-16 — Temas.** Oferecer Sistema, Claro e Escuro.  
+**Aceite:** a escolha aplica aparência correspondente sem reiniciar e é restaurada; Sistema acompanha a preferência disponível do GNOME.
+
+**RF-17 — Transparência seletiva.** Disponibilizar controle de transparência global dos fundos da janela principal.  
+**Aceite:** cabeçalho, editor e barra lateral têm fundos ajustáveis; textos, ícones e controles mantêm opacidade; o valor é restaurado; não há clique através da janela. A faixa de 0–70% é referência a confirmar com testes de legibilidade.
+
+**RF-18 — Sobreposição manual.** Permitir uso em conjunto com o recurso de janela do GNOME.  
+**Aceite:** o produto não bloqueia o procedimento manual validado para manter a janela acima de outras janelas normais e documenta como ativá-lo/desativá-lo. Não promete ativação pelo próprio Oak Note.
+
+**RF-19 — Estado da janela.** Restaurar largura, altura, maximização e última nota quando aplicável.  
+**Aceite:** ao reabrir, estado válido é recuperado; se a nota anterior não existir, a aplicação abre sem erro impeditivo; a posição fica a cargo do GNOME.
+
+**RF-20 — Atalhos internos.** Oferecer ações essenciais por teclado.  
+**Aceite:** criar nota, pesquisar, recolher a barra lateral e acessar preferências têm atalhos internos documentados e funcionais quando a janela possui foco. Mapeamento sugerido: `Ctrl+N`, `Ctrl+F`, `F9`, `Ctrl+,` e `Esc` (a confirmar quanto a conflitos).
+
+**RF-21 — Acesso rápido via GNOME.** Permitir que o usuário configure externamente um atalho para abrir a aplicação.  
+**Aceite:** o aplicativo pode ser iniciado normalmente pelo comando de instalação e a documentação explica a configuração do atalho no GNOME. Não exige registrar um hotkey global.
+
+**RF-22 — Preferências.** Disponibilizar janela nativa com configurações de tema e transparência, integrada ao estado da aplicação.  
+**Aceite:** alterações de preferência refletem-se na interface e persistem via GSettings; estado operacional não precisa ter controles editáveis.
+
+### 5.4. Dados, idioma e distribuição
+
+**RF-23 — Exportar notas.** Permitir exportar manualmente todas as notas Markdown a um diretório escolhido.  
+**Aceite:** arquivos exportados são `.md` legíveis; seleção do destino é explícita; cancelamento não altera as notas originais; conflitos e falhas são comunicados; não há sobrescrita silenciosa.
+
+**RF-24 — Internacionalização.** Disponibilizar interface em português brasileiro e inglês.  
+**Aceite:** textos próprios da interface são localizados com gettext; idioma segue a configuração regional disponível, com fallback definido; textos das anotações não são traduzidos.
+
+**RF-25 — Distribuição.** Oferecer instalação por Flatpak e instruções para compilação pelo código-fonte.  
+**Aceite:** artefato Flatpak da versão `0.1.0` pode ser instalado, aberto e encerrado no ambiente de referência; Application ID é `io.github.rafaelcarvalho89.oaknote`; publicação exige aprovação e inclui notas de versão.
+
+## 6. Requisitos não funcionais (RNF)
+
+| ID | Requisito | Evidência/critério de verificação |
+| --- | --- | --- |
+| RNF-01 | Execução nativa no Debian/GNOME/Wayland | Testes manuais no ambiente de referência, incluindo integração com o GNOME |
+| RNF-02 | Operação offline | Criar, editar, buscar e salvar notas sem conexão; nenhuma conta exigida |
+| RNF-03 | Privacidade | Sem telemetria, sincronização ou envio de conteúdo das notas |
+| RNF-04 | Portabilidade | Arquivos Markdown individuais legíveis em editor externo, sem front matter obrigatório |
+| RNF-05 | Integridade | Escrita temporária, publicação segura, concorrência controlada, conflitos e falhas testados |
+| RNF-06 | Responsividade | Operações de I/O não congelam o loop principal GTK; verificar manualmente e por testes aplicáveis |
+| RNF-07 | Acessibilidade de teclado | Funções essenciais sem mouse, foco visível e navegação consistente |
+| RNF-08 | Tecnologias assistivas | Verificação manual básica com Orca de controles e estados |
+| RNF-09 | Contraste e legibilidade | Testar texto, seleção, cursor e controles em Claro/Escuro e níveis suportados de transparência |
+| RNF-10 | Mínimo privilégio | Flatpak não requer acesso amplo à home, rede nem D-Bus irrestrito sem justificativa |
+| RNF-11 | Observabilidade local | Logs estruturados de falha e diagnóstico sem conteúdo das notas, credenciais ou dados sensíveis |
+| RNF-12 | Testabilidade | Testes unitários das regras e integração do filesystem, inclusive falhas e conflitos |
+| RNF-13 | Integração contínua | GitHub Actions executa Fmt, Clippy e testes para alterações propostas |
+| RNF-14 | Distribuição controlada | Versão SemVer, `CHANGELOG.md`, verificação do Flatpak e release aprovada manualmente |
+| RNF-15 | Arquitetura proporcional | Um crate Rust, módulos delimitados e traits seletivas, sem dependências GTK no domínio |
+| RNF-16 | Preferências persistentes | Um esquema GSettings versionado, distribuído corretamente e testado no Flatpak |
+
+Os RNFs 05 e 06 não estabelecem, nesta etapa, garantias absolutas de durabilidade ou metas numéricas de latência; essas garantias devem ser refinadas e testadas na PREP-02.
+
+## 7. Fluxos principais (casos de uso)
+
+### UC-01 — Primeira anotação
+1. Usuário abre o Oak Note.
+2. Cria uma nota e atribui um título válido.
+3. Digita texto Markdown.
+4. Após intervalo sem edição, o aplicativo salva automaticamente.
+5. A nota aparece na lista e pode ser reaberta após reiniciar.
+
+**Falhas:** colisão de nome ou erro de escrita deve ser comunicado, sem sobrescrever outro arquivo.
+
+### UC-02 — Consultar e editar nota existente
+1. Usuário pesquisa por título ou escolhe a nota na lista.
+2. Conteúdo é carregado no editor.
+3. Usuário altera o conteúdo.
+4. O salvamento atualiza o arquivo e o estado visual.
+
+**Falhas:** conflito com edição externa não pode causar substituição silenciosa.
+
+### UC-03 — Renomear ou excluir
+1. Usuário seleciona uma nota.
+2. Renomeia ou solicita exclusão.
+3. Em caso de exclusão, confirma ou cancela.
+4. A lista e a seleção são atualizadas após o resultado.
+
+**Falhas:** nome inválido, destino ocupado e falha de I/O não podem remover outra nota ou perder o conteúdo original.
+
+### UC-04 — Usar a janela enquanto trabalha
+1. Usuário abre a nota desejada.
+2. Recolhe a barra lateral, se quiser.
+3. Ajusta tema e transparência.
+4. Ativa manualmente “Sempre no topo” pelo GNOME, quando disponível.
+5. Interage com outro aplicativo enquanto mantém o Oak Note visível.
+
+**Limite:** o próprio aplicativo não controla programaticamente a sobreposição.
+
+### UC-05 — Fechar e restaurar
+1. Usuário fecha a janela.
+2. Gravações pendentes são concluídas ou uma falha é apresentada.
+3. Ao reabrir, preferências e estado válido da janela são restaurados.
+4. A nota anterior é selecionada quando ainda existe.
+
+### UC-06 — Exportar dados
+1. Usuário solicita exportação de todas as notas.
+2. Escolhe destino no seletor nativo.
+3. Aplicação gera cópias Markdown ou informa conflitos/falhas.
+4. Arquivos originais permanecem intactos.
+
+## 8. Estados da experiência
+
+Os seguintes estados precisam ser representados de maneira legível e acessível:
+- **Sem notas:** oferecer criação da primeira nota;
+- **Nota selecionada:** editor pronto para leitura ou edição;
+- **Alteração pendente:** conteúdo em memória ainda não confirmado em disco;
+- **Salvando:** gravação em andamento;
+- **Salvo:** revisão atual efetivamente persistida;
+- **Falha:** conteúdo pendente preservado e opção de nova tentativa;
+- **Conflito externo:** operação potencialmente destrutiva bloqueada até resolução;
+- **Pesquisa sem resultados:** informar ausência de títulos correspondentes;
+- **Exportação:** distinguir conclusão, cancelamento e resultado parcial.
+
+A apresentação exata (toast, indicador, diálogo ou banner) será definida na especificação técnica e no design da interface, respeitando padrões GNOME.
+
+## 9. Critérios de aceitação transversais
+
+**CA-01 — Ciclo de vida:** criar uma nota, editar e fechar; reabrir e encontrar conteúdo persistido, sem ação manual de salvar.
+
+**CA-02 — Proteção contra colisões:** criar ou renomear para nome ocupado não altera o conteúdo da nota existente.
+
+**CA-03 — Falha de gravação:** simular erro de I/O e comprovar que o aplicativo não exibe estado “salvo”, preserva o texto em memória e permite nova tentativa.
+
+**CA-04 — Concorrência:** provocar alterações em sequência e verificar que gravações atrasadas não substituem revisões mais recentes.
+
+**CA-05 — Alteração externa:** modificar um arquivo fora do Oak Note e comprovar que não há sobrescrita silenciosa.
+
+**CA-06 — Arquivos portáveis:** inspecionar arquivos criados/renomeados em editor externo; confirmar Markdown puro e título coerente com o nome físico.
+
+**CA-07 — Navegação:** criar várias notas, pesquisar pelo título, ordenar por modificação e recolher/expandir a barra lateral sem perda de edição.
+
+**CA-08 — Aparência:** alternar Sistema/Claro/Escuro, variar transparência e reiniciar; validar persistência e opacidade do conteúdo, inclusive no cabeçalho.
+
+**CA-09 — Integração GNOME:** ativar e desativar manualmente sobreposição enquanto outro aplicativo possui foco; validar operação sem click-through.
+
+**CA-10 — Distribuição:** compilar, instalar e iniciar Flatpak com ID definitivo, inspecionando permissões efetivas.
+
+**CA-11 — Localização e acessibilidade:** percorrer funções essenciais em pt-BR/en-US com teclado, foco visível e teste básico com Orca.
+
+**CA-12 — Exportação:** exportar todas as notas, verificar integridade das cópias e não alterar originais, inclusive em casos de falha/cancelamento.
+
+Esses cenários devem ser transformados em testes e checklists detalhados nas próximas etapas.
+
+## 10. Fora do escopo do MVP v0.1.0
+
+- Cadastro, login, serviços em nuvem ou sincronização entre dispositivos;
+- Colaboração, compartilhamento em tempo real ou contas;
+- Editor WYSIWYG, visualização Markdown formatada obrigatória ou realce avançado;
+- Pesquisa por conteúdo, etiquetas, categorias, pastas e favoritos;
+- Notas com janelas independentes ou modo compacto separado do recolhimento da barra lateral;
+- Controle automático de “Sempre no topo” ou extensão GNOME Shell;
+- Atalho global controlado pelo aplicativo;
+- Cliques que atravessam a janela;
+- Histórico de versões, backups automáticos ou criptografia de conteúdo;
+- Importação em lote, perfis de preferência ou temas personalizados;
+- Suporte formal e validado a outros ambientes gráficos/distribuições;
+- Publicação no Flathub e atualizações automáticas;
+- Testes automatizados end-to-end da interface como requisito obrigatório do MVP.
+
+## 11. Marcos e dependências de entrega
+
+As etapas de **planejamento** são:
+- **PREP-01:** especificação de produto (este documento);
+- **PREP-02:** especificação técnica e arquitetura detalhada;
+- **PREP-03:** backlog de histórias INVEST e critérios de aceitação por história;
+- **PREP-04:** roadmap e sequência de marcos;
+- **PREP-05:** revisão da baseline e critérios de prontidão.
+
+Os **marcos de implementação** aprovados são:
+- **M1 — Fundação:** estrutura do projeto principal, integração GTK4/libadwaita, GSettings, gettext e CI;
+- **M2 — Núcleo de notas:** gerenciamento de arquivos, edição Markdown, busca e autosave;
+- **M3 — Experiência desktop:** navegação, temas, transparência, janela e atalhos;
+- **M4 — Confiabilidade:** exportação, erros, privacidade, testes e acessibilidade;
+- **M5 — Release:** pacote Flatpak, validação final, documentação e publicação controlada de `0.1.0`.
+
+Esta divisão é orientativa; a alocação definitiva das histórias ocorrerá na PREP-04.
+
+## 12. Questões abertas para refinamento
+
+Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de comportamento. Não devem ser assumidos como já aprovados:
+
+| ID | Questão | Impacto | Etapa sugerida |
+| --- | --- | --- | --- |
+| QA-01 | Regras de normalização de título, nomes reservados, espaços, extensão e caracteres Unicode | Integridade e portabilidade | PREP-02 |
+| QA-02 | Política de desambiguação de nomes duplicados e novo título padrão | Criação e renomeação | PREP-02 |
+| QA-03 | Mecanismo de referência à nota durante renomeação, sem ID persistente | Seleção e concorrência | PREP-02 |
+| QA-04 | Debounce exato, sincronização/durabilidade, escrita e retry em caso de falha | Proteção dos dados | PREP-02 |
+| QA-05 | Resolução de conflitos com modificações/remoções externas, inclusive fechamento | Proteção dos dados | PREP-02 |
+| QA-06 | Destino e semântica da exclusão (remoção definitiva ou lixeira), com tratamento de falhas | Segurança do usuário | PREP-02 |
+| QA-07 | Comportamento em arquivos ausentes, ilegíveis, links simbólicos e concorrência entre instâncias | Robustez | PREP-02 |
+| QA-08 | Semântica de pesquisa (acentos, maiúsculas e correspondência parcial), empates de ordenação | Consistência de uso | PREP-02 |
+| QA-09 | Intervalo e condições de transparência aceitáveis, popovers/diálogos e contraste mínimo | Acessibilidade visual | PREP-02 |
+| QA-10 | Dimensões mínimas reais e composição adaptativa | Usabilidade | PREP-02 |
+| QA-11 | Política de colisões e resultados parciais na exportação | Proteção das cópias | PREP-02 |
+| QA-12 | Detalhes de GSettings, esquema de versão, valores padrão e fallback de idioma | Persistência | PREP-02 |
+| QA-13 | Versão final suportada do SDK/runtime Flatpak, permissões e metadados definitivos | Distribuição | PREP-02 |
+| QA-14 | Mapeamento final dos atalhos internos e orientação do atalho no GNOME | Acessibilidade | PREP-02 |
+
+## 13. Rastreabilidade e diretrizes aprovadas
+
+| Referência | Decisão aplicável |
+| --- | --- |
+| ADR-01 | Título como nome físico da nota `.md` |
+| ADR-02 | Markdown puro, metadados de filesystem, sem ID interno persistente |
+| ADR-03 | Autosave com debounce, temporário, substituição segura, concorrência e conflitos |
+| ADR-04 | GSettings em esquema único para preferências e estado |
+| ADR-05 | Monólito modular de um crate com traits seletivas |
+| ADR-06 | `io.github.rafaelcarvalho89.oaknote` e Flatpak com runtime controlado |
+| ADR-07 | Transparência de todos os fundos da janela principal, conteúdo opaco |
+
+As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
+
+## 14. Aprovação e próxima ação
+
+**Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
+
+**Condição para encerrar a PREP-01:** confirmar que a lista de RFs/RNFs, os critérios de aceitação e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+
+**Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
