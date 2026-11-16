@@ -98,6 +98,8 @@ O caminho da nota **não é uma identidade imutável**: a renomeação altera o 
 
 **DT-09 aprovada (alternativa B):** manter em memória, ao carregar cada nota, um **fingerprint com metadados e hash do conteúdo**, a ser comparado com o estado atual antes de salvar/substituir, renomear, mover para a lixeira ou realizar etapas destrutivas da migração. Identidade alterada, arquivo ausente ou conteúdo divergente impedem a operação automática, acionando a DT-02 quando pertinente. A verificação ocorre sob demanda, **sem monitoramento contínuo obrigatório**; não oferece prevenção absoluta de mudanças concorrentes entre conferência e operação (TOCTOU). Não persistir hashes no Markdown ou em índice de notas.
 
+**DT-16 aprovada (alternativa B):** operações potencialmente bloqueantes — leitura de arquivos, gravação/sincronização, cálculo de fingerprints, renomeação, lixeira, exportação e migração — são executadas em **workers de I/O controlados, com concorrência limitada e serialização por nota ou recurso compartilhado**. A interface GTK permanece responsiva e só recebe/aplica resultados no contexto principal GLib/GTK, conferindo **identidade da nota, revisão, operação e destino ainda ativos**. Resultados atrasados ou de revisões antigas não podem alterar a nota errada nem marcar uma revisão recente como salva. Cancelamento é solicitação cooperativa; **não prova que uma operação em andamento foi interrompida ou que efeitos em disco foram revertidos**. Fechamento e troca continuam regidos pela DT-06; resultados publicados/incertos devem ser conciliados conforme DT-05/DT-09 antes de retry ou descarte. Limites numéricos, mecanismo de fila/canal, desligamento controlado e compatibilidade com a execução Flatpak serão validados no M1/M2.
+
 A substituição atômica não significa garantia absoluta contra perda de dados em falha de hardware ou energia, nem substitui backups.
 
 ### 4.3. Preferências e estados
@@ -220,7 +222,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 | RNF-03 | Privacidade | Sem telemetria, sincronização ou envio de conteúdo das notas |
 | RNF-04 | Portabilidade | Arquivos Markdown individuais no diretório selecionado, legíveis em editor externo, sem front matter obrigatório |
 | RNF-05 | Integridade | Escrita temporária, publicação segura, coordenação interna e serialização de operações, conflitos externos e falhas testados; instância única não equivale a bloqueio global de filesystem |
-| RNF-06 | Responsividade | Operações de I/O não congelam o loop principal GTK; verificar manualmente e por testes aplicáveis |
+| RNF-06 | Responsividade | DT-16: I/O potencialmente bloqueante em workers de concorrência limitada, operações conflitantes serializadas e retorno ao contexto principal; UI permanece utilizável durante autosave, hash, exportação, migração, falhas e cancelamento, com resultados de revisões obsoletas rejeitados |
 | RNF-07 | Acessibilidade de teclado | Funções essenciais sem mouse, foco visível e navegação consistente |
 | RNF-08 | Tecnologias assistivas | Verificação manual básica com Orca de controles e estados |
 | RNF-09 | Contraste e legibilidade | DT-10: testar fundos da janela com transparência inicial de 0–70% e superfícies auxiliares opacas; medir/avaliar legibilidade de texto, seleção, cursor, indicadores e foco nos temas Claro/Escuro sobre diferentes fundos de aplicativos; reduzir máximo se necessário |
@@ -331,7 +333,7 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-03 — Falha de gravação:** simular erro de I/O e comprovar que o aplicativo não exibe estado “salvo” para revisão não publicada, preserva o texto em memória e permite nova tentativa. Falhas **após** a publicação precisam ser distinguidas de falhas anteriores, sem alegar durabilidade confirmada.
 
-**CA-04 — Concorrência:** provocar alterações em sequência e verificar que gravações atrasadas não substituem revisões mais recentes.
+**CA-04 — Concorrência:** provocar alterações em sequência e verificar que gravações atrasadas não substituem revisões mais recentes, mesmo com resultados de I/O chegando fora de ordem ao contexto GTK (DT-16).
 
 **CA-05 — Alteração externa:** modificar, remover ou substituir uma nota fora do Oak Note durante sua edição; confirmar bloqueio do autosave no caminho afetado e apresentação das três ações da DT-02. Recarregar não descarta alterações locais sem confirmação; salvar como nova nota respeita DT-01 e preserva a versão externa; cancelar mantém a edição e o conflito pendentes.
 
@@ -385,6 +387,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-30 — Defaults, versão e recuperação do GSettings (DT-15):** iniciar com esquema sem valores personalizados, conferir valores padrão e diretório XDG Documentos resolvido em execução; persistir preferências e estados, reiniciar e validar restauração. Injetar tema inválido, transparência fora da faixa, dimensões impraticáveis, referência de nota inexistente, lista de diretórios confirmados com registros inválidos e pasta via portal sem autorização: aplicar fallback ou solicitar reautorização sem trocar pasta silenciosamente nem apagar outras preferências. Validar versão lógica inicial `1`, inicialização `0`, migração futura simulada interrompida/repetida sem duplicar efeitos, preservação de dados válidos e bloqueio seguro para versão desconhecida; sem migração histórica fictícia no v0.1.0.
 
+**CA-31 — Workers de I/O, concorrência e cancelamento (DT-16):** simular gravações simultâneas em notas distintas e comandos conflitantes na mesma nota/recurso; verificar limites de concorrência, serialização, ausência de deadlock e fluidez da UI. Forçar resposta obsoleta após nova revisão, troca de nota, renomeação ou alteração de pasta: não atualizar a nota errada, não perder buffer nem apresentar `Salvo` incorretamente. Cancelar exportação/migração durante I/O, fechar com gravação pendente e simular falha de worker: rejeitar efeitos de UI obsoletos, preservar resultados já publicados, conciliar efeitos em disco incertos e aplicar DT-05/DT-06/DT-09 antes de repetir operações. Testar também saturação da fila para impedir que exportações longas impeçam indefinidamente salvamentos essenciais.
+
 **Nota de escopo:** a DT-03 rege a **exclusão individual solicitada pelo usuário**. A limpeza de arquivos de origem após uma migração confirmada continua sujeita à DT-20, com política operacional própria a ser refinada.
 
 Esses cenários devem ser transformados em testes e checklists detalhados nas próximas etapas.
@@ -432,7 +436,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-01 | Regras de normalização de título, nomes reservados, espaços, extensão e caracteres Unicode | Integridade e portabilidade | PREP-02 |
 | QA-02 | Detalhes de formato da sugestão de nome alternativo e título inicial (a política de **sugestão editável** já está aprovada na DT-01) | Criação e renomeação | PREP-02 |
 | QA-03 | Mecanismo de referência à nota durante renomeação, sem ID persistente | Seleção e concorrência | PREP-02 |
-| QA-04 | **DT-05 aprovada:** sincronizar dados do temporário, publicar por substituição atômica quando suportada e sincronizar diretório quando disponível; **DT-06 aprovada:** oferecer retry, cancelar ou descarte confirmado em troca/fechamento. Detalhar debounce, estados incertos e compatibilidade real | Proteção dos dados | PREP-02 |
+| QA-04 | **DT-05/DT-06 aprovadas:** sync/publicação e saída segura; **DT-16 aprovada:** workers de I/O controlados com cancelamento cooperativo e retorno validado ao GTK. Detalhar debounce, fila, estados incertos e compatibilidade real | Proteção dos dados | PREP-02 |
 | QA-05 | **DT-02 aprovada:** recarregar, salvar local como nova nota ou cancelar; **DT-09 aprovada:** comparar metadados + hash em memória antes de operações destrutivas. Refinar algoritmo, fingerprint indisponível, TOCTOU e arquivo ausente/renomeado | Proteção dos dados | PREP-02 |
 | QA-06 | **DT-03 aprovada:** enviar nota à lixeira após confirmação; se indisponível ou falhar, informar erro sem excluir definitivamente. Detalhar suporte GIO/Flatpak e validações pré-exclusão | Segurança do usuário | PREP-02 |
 | QA-07 | **DT-04 aprovada:** instância única e operações internas serializadas; **DT-14 aprovada:** notas limitadas a `.md` regulares sem seguir symlinks, avisando entradas ignoradas. Investigar revalidação de tipo/identidade, TOCTOU e concorrência entre sessões/aplicativos | Robustez | PREP-02 |
@@ -477,6 +481,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-13 | Ordenar por `mtime` real decrescente, colocar notas sem `mtime` ao final; desempatar por título Unicode normalizado e caminho físico determinístico, sem depender do locale ou da ordem de enumeração |
 | DT-14 | Reconhecer somente `.md` regulares na raiz e não seguir symlinks; ignorar entradas especiais ou diretórios, avisar discretamente sobre entradas relevantes descartadas e nunca modificá-las; revalidar antes das operações |
 | DT-15 | Esquema GSettings único, chaves tipadas e defaults seguros, versão lógica inicial 1; somente mudanças incompatíveis exigem migração explícita/idempotente, sem apagar preferências válidas nem converter confirmação em autorização do portal |
+| DT-16 | Workers de I/O limitados e coordenados por nota/recurso; aplicação de resultados somente no contexto GTK com identidade/revisão válidas; cancelamento não confirma interrupção ou rollback e deve conciliar efeitos externos |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -484,6 +489,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 30 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 31 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
