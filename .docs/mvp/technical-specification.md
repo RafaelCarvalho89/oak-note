@@ -135,7 +135,7 @@ NoteSnapshot
 - Se o diretório padrão ou escolhido estiver indisponível, informar e solicitar intervenção, **sem redirecionar silenciosamente** e sem apagar/transportar arquivos.
 - A pasta Documentos pode conter `.md` criados fora do Oak Note. **É obrigatório definir política para arquivos preexistentes e escopo de listagem**, evitando tocar arquivos de terceiros sem ação do usuário (DT-19).
 - **DT-19 aprovada (alternativa B):** ao primeiro acesso a pasta com arquivos `.md` **preexistentes na raiz**, informar que serão reconhecidos como notas e solicitar confirmação. Oferecer **aceitar** ou **selecionar outra pasta**; antes da confirmação, não apresentar/abrir o conteúdo como nota. A detecção não percorre subdiretórios, não importa arquivos nem os altera. Pastas sem arquivos `.md` na raiz não exigem confirmação. A forma de lembrar a autorização por pasta será refinada (DT-21), sem índice das notas.
-- **DT-17 aprovada (alternativa C):** ao trocar a pasta ativa, oferecer opção explícita de **manter notas na origem** ou **migrá-las para a pasta selecionada**. Manter significa preservar a origem e trabalhar na nova pasta. Migrar exige consentimento, controle de alterações pendentes, detecção de colisões e tratamento de falhas, sem remoção silenciosa de dados. A estratégia operacional de migração ainda será refinada.
+- **DT-17 aprovada (alternativa C):** ao trocar a pasta ativa, oferecer opção explícita de **manter notas na origem** ou **migrá-las para a pasta selecionada**. Manter preserva os arquivos na origem; migrar é regido pela **DT-20 aprovada (alternativa B)**: copiar integralmente, validar cópias, ativar destino após validação completa e exigir confirmação explícita adicional, com verificações de segurança, antes de remover originais. A migração entre pastas não é uma única transação atômica; falhas parciais e recuperação exigem tratamento.
 
 **Flatpak:** a permissão estática `--filesystem=xdg-documents` é candidata prática para acesso transparente à pasta Documentos configurada pelo usuário; porém permite acesso amplo **dentro de Documentos**, e exige revisão de mínimo privilégio. Para locais arbitrários, priorizar o portal de seleção de pasta com acesso autorizado pelo usuário; verificar persistência do acesso entre sessões e se criar/renomear/substituir arquivos com segurança é suportado no caminho devolvido pelo portal (DT-18). Não conceder `--filesystem=home` somente para acomodar a escolha de pasta. As garantias de escrita atômica podem variar no caminho FUSE do portal e precisam ser validadas experimentalmente.
 
@@ -216,13 +216,29 @@ Quando houver conflito, o sistema preservará a edição em memória e deverá d
 | Excluir | Confirmar, verificar revisão e remover | Operação condicionada | Cancelamento/falha |
 | Buscar | Filtrar notas carregadas por título | Não exige índice | Nenhum resultado |
 | Exportar | Coordenar lista e progresso | Cópia `.md` com destino do usuário | Parcial, colisões, permissões |
-| Alterar diretório | Validar pasta/edições pendentes e oferecer **manter ou migrar** (DT-17) | Seleção via portal; migração controlada quando escolhida | Pasta indisponível, cancelamento, nomes ocupados e falhas parciais |
+| Alterar diretório | Validar pasta/edições pendentes, oferecer **manter ou migrar** (DT-17), coordenar cópia e validação integral (DT-20) | Seleção via portal, cópia sem sobrescrita, verificação, ativação segura e remoção posterior com confirmação | Pasta indisponível, cancelamento, nomes ocupados, conteúdo divergente, cópia ou limpeza parcial |
 
-### 6.1. Exclusão (QA-06)
+### 6.1. Migração entre diretórios — DT-20 aprovada (alternativa B)
+
+A migração é distinta da exportação e da escolha de **manter notas na pasta anterior** (DT-17). A transferência autorizada deve obedecer à ordem:
+
+1. **Preparação:** validar o destino, concluir ou resolver salvamentos pendentes, suspender operações conflitantes da aplicação sobre as notas envolvidas e obter um snapshot do conjunto de arquivos elegíveis da raiz. Aplicar a DT-19 à presença de Markdown preexistente no destino. Interrupções e modificações por outras aplicações não estão controladas apenas por essa suspensão.
+2. **Pré-verificação:** identificar colisões de nomes, permissões, falta de espaço e arquivos inacessíveis. Não substituir arquivos existentes. Em caso de impedimento, interromper antes de excluir qualquer original e comunicar opções seguras.
+3. **Cópia:** copiar cada arquivo para o destino usando arquivos temporários no próprio destino e publicação sem sobrescrita conforme suportada pelo filesystem/portal. Não presumir que um `rename` entre sistemas de arquivos seja atômico. A publicação segura precisa ser verificada no ambiente Flatpak (DT-18).
+4. **Verificação integral:** verificar o conjunto esperado de arquivos e integridade das cópias (por exemplo, bytes/hash, sem confiar apenas em tamanho). Conferir se houve modificações externas na origem durante a transferência; diante de alterações ou resultado desconhecido, não ativar o novo destino automaticamente.
+5. **Ativação:** apenas depois da validação completa, registrar o novo diretório ativo e atualizar a interface. Antes disso, a origem continua sendo a fonte de verdade. O tratamento de falha ao persistir a preferência deve ser seguro e não deixar a interface assumindo conclusão inexistente.
+6. **Limpeza opcional confirmada:** após a ativação, solicitar **confirmação explícita adicional** do usuário para remover os originais. Revalidar a correspondência entre os arquivos de origem e as cópias antes de cada remoção; nunca eliminar uma origem com alteração não refletida no destino.
+7. **Falhas após a ativação:** não voltar silenciosamente à origem nem apagar outras cópias. Informar a quantidade de arquivos remanescentes e permitir resolução segura. A nova pasta continua sendo a ativa se estiver íntegra; a limpeza parcial não é reportada como sucesso completo.
+
+**Regras transversais:** operação cancelável antes de ações destrutivas; nenhuma sobrescrita silenciosa; resultados intermediários explícitos; arquivos temporários e cópias parciais não devem ser limpos de modo a eliminar dados originais ou de terceiros. Garantia de rollback global não é presumida.
+
+**Aspectos ainda pendentes de desenho/teste:** necessidade e formato mínimo de estado operacional recuperável após crash, isolamento diante de outras instâncias/processos, autorização do portal persistida, comportamento em cópia parcial e retentativa idempotente (evitar sobrescrever arquivos previamente criados), sem adicionar índice de metadados das notas. Detalhar sem criar framework de migração genérico.
+
+### 6.2. Exclusão (QA-06)
 
 **Aberto:** mover para lixeira ou apagar definitivamente. O MVP deve confirmar exclusão e preservar outros arquivos, mas não se deve presumir recuperação se o armazenamento privado não fornecer integração de lixeira. A decisão afeta UX e testes de erro.
 
-### 6.2. Exportação (QA-11)
+### 6.3. Exportação (QA-11)
 
 **Proposta:** o usuário escolhe diretório usando seletor/portal adequado; exportar arquivos Markdown sem alterar originais, preservando títulos quando seguros. O relatório final identifica sucesso, falhas e cancelamento; nenhuma cópia existente deve ser sobrescrita silenciosamente. Definir antes da implementação se a operação é tudo-ou-nada ou permite resultado parcial.
 
@@ -326,6 +342,8 @@ Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificaç
 | Diretório de notas | XDG Documentos em instalações pt-BR/en-US; pasta inexistente, acesso negado, seleção alternativa, restauro após reinício, arquivos `.md` preexistentes |
 | DT-19 — confirmação | Pasta com `.md` preexistente na raiz no primeiro acesso: aceitar, escolher outra pasta, cancelar, pasta vazia, subdiretórios ignorados e não modificação dos arquivos |
 | Troca de pasta | Escolha de manter, escolha de migrar, cancelamento, arquivos de mesmo nome, edições pendentes e falhas parciais sem perda silenciosa |
+| DT-20 — cópia/validação | Cópia integral com verificação de bytes/hash; nenhuma ativação com cópia incompleta, origem modificada, destino ocupado ou acesso negado; arquivos de origem intactos durante a transferência |
+| DT-20 — ativação/limpeza | Confirmação adicional para remoção, revalidação antes de cada exclusão, cancelamento da limpeza, falha parcial de remoção e persistência correta do diretório ativo |
 
 | Exportação | conteúdo preservado, destino ocupado, cancelamento e falha parcial |
 
@@ -360,7 +378,7 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 
 ## 12. Decisões técnicas pendentes — não aprovadas
 
-**Decisões concluídas:** **DT-01 — alternativa B:** para título duplicado, sugerir nome disponível e permitir aceitar ou editar, sem sobrescrever. **DT-17 — alternativa C:** ao trocar a pasta ativa, oferecer escolha entre **manter notas na origem** ou **migrá-las**, sem movimentação silenciosa. **DT-19 — alternativa B:** confirmar no primeiro acesso o reconhecimento de arquivos `.md` preexistentes na raiz ou escolher outra pasta, sem recursão e sem alterar os arquivos. Detalhes técnicos de migração e persistência dessa confirmação serão refinados separadamente.
+**Decisões concluídas:** **DT-01 — alternativa B:** para título duplicado, sugerir nome disponível e permitir aceitar ou editar, sem sobrescrever. **DT-17 — alternativa C:** ao trocar a pasta ativa, oferecer escolha entre **manter notas na origem** ou **migrá-las**, sem movimentação silenciosa. **DT-19 — alternativa B:** confirmar no primeiro acesso o reconhecimento de arquivos `.md` preexistentes na raiz ou escolher outra pasta, sem recursão e sem alterar os arquivos. **DT-20 — alternativa B:** copiar todas as notas e validar integralmente antes de ativar o novo diretório; remover os originais somente após confirmação explícita adicional e verificações de segurança. Não prometer atomicidade global; detalhar recuperação de falhas parciais. A persistência da confirmação DT-19 será refinada separadamente.
 
 | Prioridade | ID | Decisão a tomar | Alternativas a investigar |
 | --- | --- | --- | --- |
@@ -381,16 +399,15 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | Média | DT-15 | Valores finais das chaves GSettings e migração | defaults e versionamento |
 | Média | DT-16 | Mecanismo de execução de I/O e retorno ao contexto GTK | GLib assíncrono / worker controlado |
 | Alta | DT-18 | Permissões e operações na pasta padrão e alternativa com Flatpak | `xdg-documents` + portal; verificar persistência e escrita atômica em FUSE |
-| Alta | DT-20 | Detalhes de execução da migração escolhida na DT-17 | copiar e validar / mover e verificar / resolver falhas parciais e colisões |
 | Média | DT-21 | Como lembrar a confirmação inicial da DT-19 por pasta | GSettings com referência à pasta / confirmação por sessão; sem criar índice de notas |
 
-**Recomendação de refinamento:** DT-01, DT-17 e DT-19 estão aprovadas. Resolver **DT-20 (migração segura)** antes dos fluxos de armazenamento; depois decidir DT-02 a DT-04, uma questão de integridade por vez. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
+**Recomendação de refinamento:** DT-01, DT-17, DT-19 e DT-20 estão aprovadas. Prosseguir para **DT-02 — resolução de conflitos externos**, depois DT-03 e DT-04, uma questão de integridade por vez. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
 
 ## 13. Critérios de conclusão da PREP-02
 
 Para declarar a PREP-02 aprovada, precisamos:
 1. Verificar cobertura de RF-01–RF-26 e RNF-01–RNF-16.
-2. Incorporar as DT-01, DT-17 e DT-19 aprovadas e resolver DT-02–04 e DT-20, sem reabrir as ADRs desnecessariamente.
+2. Incorporar as DT-01, DT-17, DT-19 e DT-20 aprovadas e resolver DT-02–04, sem reabrir as ADRs desnecessariamente.
 3. Estabelecer contratos operacionais de salvamento, renomeação, exclusão, troca de pasta e exportação suficientemente testáveis.
 4. Definir a versão de runtime/SDK e principais dependências durante o planejamento, antes da implementação que delas dependa; considerar a validação de permissões e publicação atômica em pastas selecionadas.
 5. Definir limites verificáveis de acessibilidade e falhas.
