@@ -277,7 +277,7 @@ O contrato entre `SaveCoordinator` e adaptador de filesystem precisa retornar **
 | Renomear | Coordenar salvamento e referência mutável | Renomeação sem colisão | Conflito externo |
 | Excluir | Confirmar, resolver edições pendentes, verificar identidade operacional/fingerprint e aplicar DT-03 | Tentar mover arquivo selecionado para a lixeira; sem fallback destrutivo | Cancelamento, alteração externa, lixeira não suportada e falha de I/O |
 | Buscar | Filtrar notas carregadas por título | Não exige índice | Nenhum resultado |
-| Exportar | Coordenar lista e progresso | Cópia `.md` com destino do usuário | Parcial, colisões, permissões |
+| Exportar | DT-07: coordenar lote, estados pendentes e relatório por arquivo | Copiar `.md` para destino escolhido sem sobrescrita, validar resultados e continuar após erros recuperáveis | Destino ocupado (ignorar), erro individual, acesso perdido, cancelamento ou resultado incerto |
 | Alterar diretório | Validar pasta/edições pendentes, oferecer **manter ou migrar** (DT-17), coordenar cópia e validação integral (DT-20) | Seleção via portal, cópia sem sobrescrita, verificação, ativação segura e remoção posterior com confirmação | Pasta indisponível, cancelamento, nomes ocupados, conteúdo divergente, cópia ou limpeza parcial |
 
 ### 6.1. Migração entre diretórios — DT-20 aprovada (alternativa B)
@@ -313,9 +313,23 @@ A exclusão solicitada pelo usuário deve **mover o arquivo Markdown selecionado
 
 **Distinção de escopo:** DT-03 aplica-se à **exclusão individual da nota pelo usuário**. A remoção dos originais após a migração aprovada na DT-20 é outro fluxo, exigindo confirmação adicional e verificações de segurança; sua política operacional precisa ser refinada sem assumir automaticamente que usa o mesmo mecanismo de lixeira.
 
-### 6.3. Exportação (QA-11)
+### 6.3. Exportação — DT-07 aprovada (alternativa B)
 
-**Proposta:** o usuário escolhe diretório usando seletor/portal adequado; exportar arquivos Markdown sem alterar originais, preservando títulos quando seguros. O relatório final identifica sucesso, falhas e cancelamento; nenhuma cópia existente deve ser sobrescrita silenciosamente. Definir antes da implementação se a operação é tudo-ou-nada ou permite resultado parcial.
+**Política:** exportar tantas notas quanto possível, **sem sobrescrever arquivos preexistentes no destino**. Colisões são classificadas como **ignoradas**; falhas individuais recuperáveis são registradas e a exportação prossegue. Nenhum resultado parcial pode ser comunicado como exportação integral. Não há rollback do lote, exclusão dos originais, migração de diretório ou atualização da pasta ativa.
+
+**Sequência de referência:**
+1. Obter lista das notas elegíveis do diretório ativo (arquivos `.md` da raiz reconhecidos por DT-19/DT-21), excluir diretórios internos e selecionar destino explicitamente via seletor/portal (DT-18). Não modificar originais.
+2. Antes de copiar cada nota, garantir que a revisão a exportar corresponde ao estado esperado: resolver buffer pendente, persistência incerta ou conflito conforme DT-02/DT-05/DT-06, ou classificar como **falha/pendência**, sem exportar silenciosamente conteúdo obsoleto. Não confundir exportar arquivo em disco com capturar alteração ainda só em memória.
+3. Rejeitar ou tratar com segurança destino igual à origem ou arquivo origem=destino. Não tentar copiar arquivo sobre si próprio. Detectar nome ocupado e **ignorar essa nota**, deixando arquivo preexistente intacto. A detecção antecipada não substitui operação sem sobrescrita na publicação, diante de TOCTOU.
+4. Criar cópias usando temporário próprio no destino, copiar o conteúdo e validar resultado/integridade; publicar sem sobrescrita quando suportado (ex.: criação exclusiva ou mecanismo condicional seguro avaliado no filesystem/portal). Uma cópia incompleta ou de resultado incerto não conta como sucesso. Não remover arquivos alheios ou arquivos preexistentes na limpeza.
+5. Em falha individual **recuperável**, registrar item, motivo e seguir com os demais. Se o destino inteiro perder acesso ou ocorrer condição que inviabilize continuar, interromper de forma controlada e reportar o conjunto concluído e o restante **não processado**; não insistir repetidamente em operação sabidamente impossível.
+6. Ao concluir ou cancelar, apresentar **relatório verificável** com contagens e identificação de notas **exportadas, ignoradas por colisão, com falha e não processadas por cancelamento/interrupção**. Arquivos já exportados com sucesso permanecem no destino. Cancelar não exclui cópias concluídas nem altera arquivos de origem.
+
+**Integração:** feature `export` orquestra o lote e o progresso, reutilizando operações seguras do adaptador de filesystem da feature de notas sem introduzir framework genérico. UI libadwaita informa estado e resumo final, podendo detalhar notas problemáticas. Não bloquear main loop GTK com cópias ou hashes. O formato `.md` e o nome físico seguro são preservados; não criar arquivo de índice ou manifest de exportação no MVP.
+
+**Falhas a verificar:** colisão, permissão revogada, espaço insuficiente, diretório removido, exportação para origem, erro de leitura de nota, estado Dirty/Conflict/PublishedUnverified, interrupção entre temporário e publicação, cancelamento em andamento e resultados que não podem ser confirmados. As garantias de cópia segura e as APIs de portal devem ser testadas no ambiente escolhido (DT-18).
+
+**Detalhes ainda pendentes:** apresentação final do relatório, tratamento de arquivos `.md` inválidos/especiais (DT-14), critério de falha irrecuperável em todo o destino e mecanismos exatos de publicação sem sobrescrita. A escolha de continuar quando possível já está aprovada e não deve ser reinterpretada como exportação tudo-ou-nada.
 
 ## 7. Interface GTK4/libadwaita
 
@@ -443,8 +457,6 @@ Usar gettext para textos próprios da interface em pt-BR e inglês, com fallback
 
 ### 9.3. Build e release
 
-### 9.3. Build e release
-
 Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificação de build Flatpak/manifesto e testes manuais no GNOME/Wayland antes do release. O processo de liberação verifica licença MIT, changelog, metadados AppStream e caminho de instalação.
 
 ## 10. Qualidade, testes e diagnósticos
@@ -473,7 +485,7 @@ Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificaç
 | DT-20 — cópia/validação | Cópia integral com verificação de bytes/hash; nenhuma ativação com cópia incompleta, origem modificada, destino ocupado ou acesso negado; arquivos de origem intactos durante a transferência |
 | DT-20 — ativação/limpeza | Confirmação adicional para remoção, revalidação antes de cada exclusão, cancelamento da limpeza, falha parcial de remoção e persistência correta do diretório ativo |
 
-| Exportação | conteúdo preservado, destino ocupado, cancelamento e falha parcial |
+| Exportação — DT-07 | Cópia de todas as notas possíveis; ocupação de nome ignorada sem overwrite; erro individual recuperável não interrompe lote; cópias verificadas e origem intacta; destino igual à origem, buffers pendentes, falha global, cancelamento e relatório com exportadas/ignoradas/com falha/não processadas |
 
 Os testes de integração de filesystem devem usar diretórios isolados e não depender do diretório real do usuário.
 
@@ -498,7 +510,7 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | RF-01–08 | feature `notes` + porta de repositório seletiva | unitário e integração de filesystem |
 | RF-09–14 | feature `notes` (SaveCoordinator + adaptador), incluindo estados de persistência DT-05 e coordenação de navegação/fechamento DT-06 | unitário, integração, falhas antes/depois da publicação, decisões do usuário e testes manuais de fechamento |
 | RF-15–22 | features `notes`/`appearance`/`storage` + GSettings | teste manual de interface |
-| RF-23 | feature `export` + portal | integração e teste manual |
+| RF-23 | feature `export` + portal (DT-07) | integração de exportação parcial/colisão/cancelamento, relatório e testes manuais do portal |
 | RF-24 | feature de UI/localização + gettext | checagem de tradução e teste manual |
 | RF-25 | flatpak + CI | build, instalação e smoke test |
 | RF-26 | feature de storage + GSettings + portal (DT-18/DT-21) | seleção, validação das operações, autorização persistente e consentimento por pasta no GSettings, testados separadamente |
@@ -507,12 +519,11 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 
 ## 12. Decisões técnicas pendentes — não aprovadas
 
-**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. **DT-04 — A:** instância única por sessão da aplicação; novas ativações acionam a janela existente; operações internas serializadas, sem presumir proteção global contra editores externos. **DT-05 — B:** sincronizar dados do temporário, publicar via substituição atômica quando suportada e sincronizar o diretório quando disponível, distinguindo publicação de durabilidade verificada e resultados incertos. **DT-06 — B:** antes de trocar de nota ou encerrar normalmente, tentar concluir salvamentos; se falhar ou houver durabilidade incerta, oferecer retry, cancelar/continuar editando ou descartar com confirmação específica. Conflitos seguem DT-02 e encerramento forçado não garante recuperação. **DT-09 — B:** comparar metadados e hash de conteúdo mantidos em memória, verificados sob demanda antes de operações destrutivas; sem monitoramento contínuo obrigatório. **DT-18 — A:** conceder leitura/escrita estática somente a XDG Documentos no Flatpak e solicitar autorização por portal para outras pastas; testar operações reais e continuidade do acesso; jamais ampliar permissões automaticamente. **DT-21 — A:** persistir confirmações de reconhecimento de Markdown **por diretório** em GSettings; revisitas válidas não exigem confirmação, sem índice de notas ou concessão de acesso do sistema. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
+**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. **DT-04 — A:** instância única por sessão da aplicação; novas ativações acionam a janela existente; operações internas serializadas, sem presumir proteção global contra editores externos. **DT-05 — B:** sincronizar dados do temporário, publicar via substituição atômica quando suportada e sincronizar o diretório quando disponível, distinguindo publicação de durabilidade verificada e resultados incertos. **DT-06 — B:** antes de trocar de nota ou encerrar normalmente, tentar concluir salvamentos; se falhar ou houver durabilidade incerta, oferecer retry, cancelar/continuar editando ou descartar com confirmação específica. Conflitos seguem DT-02 e encerramento forçado não garante recuperação. **DT-09 — B:** comparar metadados e hash de conteúdo mantidos em memória, verificados sob demanda antes de operações destrutivas; sem monitoramento contínuo obrigatório. **DT-18 — A:** conceder leitura/escrita estática somente a XDG Documentos no Flatpak e solicitar autorização por portal para outras pastas; testar operações reais e continuidade do acesso; jamais ampliar permissões automaticamente. **DT-21 — A:** persistir confirmações de reconhecimento de Markdown **por diretório** em GSettings; revisitas válidas não exigem confirmação, sem índice de notas ou concessão de acesso do sistema. **DT-07 — B:** exportar as notas possíveis sem sobrescrever destinos ocupados, continuar após falhas individuais recuperáveis e reportar exportadas, ignoradas, falhas e itens não processados, preservando originais. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
 
 | Prioridade | ID | Decisão a tomar | Alternativas a investigar |
 | --- | --- | --- | --- |
 
-| Alta | DT-07 | Política de exportação com conflitos e falhas parciais | abortar / continuar e relatar / manter arquivos anteriores |
 | Alta | DT-08 | Versão específica do runtime GNOME e toolchain | matriz de compatibilidade e manutenção |
 | Média | DT-10 | Intervalo e contraste de transparência; superfícies excepcionais | faixa 0–70% / limite menor mediante teste |
 | Média | DT-11 | Dimensões mínimas e comportamento responsivo | testes de layout GNOME |
@@ -522,13 +533,13 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | Média | DT-15 | Valores finais das chaves GSettings e migração | defaults e versionamento |
 | Média | DT-16 | Mecanismo de execução de I/O e retorno ao contexto GTK | GLib assíncrono / worker controlado |
 
-**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 estão aprovadas. A primeira rodada de decisões críticas de integridade e as DT-05/DT-06 foram aprovadas; **DT-09, DT-18 e DT-21 também foram aprovadas; próxima decisão: DT-07 — exportação, colisões e falhas parciais**, seguida de DT-08 — versão do runtime. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
+**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 estão aprovadas. A primeira rodada de decisões críticas de integridade e as DT-05/DT-06 foram aprovadas; **DT-09, DT-18, DT-21 e DT-07 também foram aprovadas; próxima decisão: DT-08 — versões do runtime GNOME e toolchain Rust**, com verificação de suporte e compatibilidade antes de M1. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
 
 ## 13. Critérios de conclusão da PREP-02
 
 Para declarar a PREP-02 aprovada, precisamos:
 1. Verificar cobertura de RF-01–RF-27 e RNF-01–RNF-16.
-2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02, DT-03, DT-04, DT-05, DT-06, DT-09, DT-18 e DT-21 aprovadas; verificar limites de instância única, salvamento reforçado, fechamento seguro, fingerprints, permissões Flatpak e confirmação persistida por pasta, refinando as demais decisões conforme risco antes do backlog.
+2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02, DT-03, DT-04, DT-05, DT-06, DT-09, DT-18, DT-21 e DT-07 aprovadas; verificar limites de instância única, salvamento reforçado, fechamento seguro, fingerprints, permissões Flatpak, confirmação persistida por pasta e exportação parcial, refinando as demais decisões conforme risco antes do backlog.
 3. Estabelecer contratos operacionais de salvamento, renomeação, exclusão, troca de pasta e exportação suficientemente testáveis.
 4. Definir a versão de runtime/SDK e principais dependências durante o planejamento, antes da implementação que delas dependa; considerar a validação de permissões e publicação atômica em pastas selecionadas.
 5. Definir limites verificáveis de acessibilidade e falhas.
