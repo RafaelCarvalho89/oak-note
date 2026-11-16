@@ -85,7 +85,7 @@ O caminho da nota **não é uma identidade imutável**: a renomeação altera o 
 
 **ADR-03:** o salvamento automático usa debounce, arquivo temporário no mesmo diretório, substituição atômica quando suportada, escrita serializada por nota e tratamento explícito de falhas. Revisões antigas não podem substituir conteúdo mais recente.
 
-Se houver conflito com edição externa, renomeação ou arquivo de destino existente, a operação não pode sobrescrever silenciosamente dados. A política exata de resolução desses casos será detalhada na PREP-02.
+**DT-02 aprovada (alternativa B):** se uma nota aberta tiver sido modificada, substituída, removida ou renomeada externamente, o Oak Note **bloqueia qualquer sobrescrita automática** do caminho afetado e sinaliza conflito. Oferece três ações: **recarregar a versão externa** (confirmando antes de descartar edições locais); **salvar a edição local como nova nota** (respeitando a sugestão editável de nome da DT-01 e sem substituir a versão externa); ou **cancelar**, mantendo o buffer e o conflito pendentes. Nenhum desses caminhos pode perder silenciosamente alterações. A detecção e a resolução operacional serão detalhadas na PREP-02.
 
 A substituição atômica não significa garantia absoluta contra perda de dados em falha de hardware ou energia, nem substitui backups.
 
@@ -142,13 +142,13 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** operações de gravação da mesma nota são ordenadas; publicação utiliza arquivo temporário e substituição segura; falhas não marcam uma revisão não persistida como salva.
 
 **RF-11 — Comunicar estado de salvamento.** Exibir estados compreensíveis, como alteração pendente, salvando, salvo e falha.  
-**Aceite:** após falha aparece aviso perceptível, alterações pendentes são preservadas e há possibilidade de nova tentativa.
+**Aceite:** após falha aparece aviso perceptível, alterações pendentes são preservadas e há possibilidade de nova tentativa; um conflito externo é apresentado de forma distinta de falha de I/O e não é tratado como salvamento bem-sucedido.
 
 **RF-12 — Proteger alterações ao alternar ou encerrar.** Não descartar dados alterados silenciosamente.  
 **Aceite:** ao trocar de nota ou fechar, o aplicativo tenta concluir as gravações pendentes; quando não for possível, apresenta alternativa segura ou confirmação explícita de eventual descarte, sem alegar que salvou.
 
 **RF-13 — Detectar conflitos externos.** Não sobrescrever modificações feitas fora do Oak Note sem tratamento.  
-**Aceite:** quando o arquivo foi alterado, substituído, removido ou renomeado externamente desde a leitura, operações potencialmente destrutivas identificam o conflito e evitam sobrescrita silenciosa.
+**Aceite:** quando um arquivo aberto for alterado, substituído, removido ou renomeado externamente desde a leitura, o aplicativo identifica o conflito antes de publicar alterações locais, **bloqueia sobrescrita automática** e oferece: (1) **recarregar a versão externa**, após confirmação explícita caso haja edição local pendente; (2) **salvar a edição local como nova nota**, com sugestão editável de nome (DT-01) e sem sobrescrever a versão externa; (3) **cancelar**, mantendo o texto no buffer e o conflito ativo. Nenhuma ação descarta alterações silenciosamente.
 
 **RF-14 — Tratar erros de arquivo.** Comunicar falhas de leitura, gravação, renomeação, exclusão e exportação.  
 **Aceite:** o usuário recebe mensagem contextualizada; o aplicativo preserva, sempre que possível, o estado editável e não registra o conteúdo da nota nos logs.
@@ -233,7 +233,7 @@ Os RNFs 05 e 06 não estabelecem, nesta etapa, garantias absolutas de durabilida
 3. Usuário altera o conteúdo.
 4. O salvamento atualiza o arquivo e o estado visual.
 
-**Falhas:** conflito com edição externa não pode causar substituição silenciosa.
+**Falhas:** se houver edição externa, o aplicativo bloqueia autosave na nota conflitante e permite recarregar com confirmação, salvar a edição local como nova nota ou cancelar mantendo a edição; nenhuma alternativa sobrescreve a versão externa silenciosamente.
 
 ### UC-03 — Renomear ou excluir
 1. Usuário seleciona uma nota.
@@ -304,7 +304,7 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-04 — Concorrência:** provocar alterações em sequência e verificar que gravações atrasadas não substituem revisões mais recentes.
 
-**CA-05 — Alteração externa:** modificar um arquivo fora do Oak Note e comprovar que não há sobrescrita silenciosa.
+**CA-05 — Alteração externa:** modificar, remover ou substituir uma nota fora do Oak Note durante sua edição; confirmar bloqueio do autosave no caminho afetado e apresentação das três ações da DT-02. Recarregar não descarta alterações locais sem confirmação; salvar como nova nota respeita DT-01 e preserva a versão externa; cancelar mantém a edição e o conflito pendentes.
 
 **CA-06 — Arquivos portáveis:** inspecionar arquivos criados/renomeados em editor externo; confirmar Markdown puro e título coerente com o nome físico.
 
@@ -372,7 +372,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-02 | Detalhes de formato da sugestão de nome alternativo e título inicial (a política de **sugestão editável** já está aprovada na DT-01) | Criação e renomeação | PREP-02 |
 | QA-03 | Mecanismo de referência à nota durante renomeação, sem ID persistente | Seleção e concorrência | PREP-02 |
 | QA-04 | Debounce exato, sincronização/durabilidade, escrita e retry em caso de falha | Proteção dos dados | PREP-02 |
-| QA-05 | Resolução de conflitos com modificações/remoções externas, inclusive fechamento | Proteção dos dados | PREP-02 |
+| QA-05 | **DT-02 aprovada:** recarregar com confirmação, salvar edição local como nova nota ou cancelar mantendo conflito; detalhar detecção, arquivo ausente/renomeado, fechamento e concorrência | Proteção dos dados | PREP-02 |
 | QA-06 | Destino e semântica da exclusão (remoção definitiva ou lixeira), com tratamento de falhas | Segurança do usuário | PREP-02 |
 | QA-07 | Comportamento em arquivos ausentes, ilegíveis, links simbólicos e concorrência entre instâncias | Robustez | PREP-02 |
 | QA-08 | Semântica de pesquisa (acentos, maiúsculas e correspondência parcial), empates de ordenação | Consistência de uso | PREP-02 |
@@ -400,6 +400,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-17 | Troca de pasta: escolher manter notas na origem ou migrá-las, sem movimentação silenciosa |
 | DT-19 | Confirmar reconhecimento de `.md` existentes na raiz no primeiro acesso ou selecionar outra pasta; sem recursão |
 | DT-20 | Migrar: copiar tudo sem sobrescrever, validar antes de ativar destino, confirmar explicitamente antes de remover originais e verificar segurança |
+| DT-02 | Conflito externo: bloquear sobrescrita e oferecer recarregar com confirmação, salvar local como nova nota ou cancelar preservando o buffer |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
