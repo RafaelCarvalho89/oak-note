@@ -161,25 +161,29 @@ O conteúdo do `.md` é a fonte de verdade da nota. A data de modificação do f
 ### 5.1. Estados internos propostos
 
 ```text
-Clean       # memória corresponde à revisão persistida
-Dirty       # alteração em memória não persistida
-Scheduled   # debounce aguardando
-Saving      # operação de persistência em andamento
-Error       # última tentativa falhou, conteúdo preservado
-Conflict    # alteração externa impede publicação automática
+Clean              # revisão correspondente com publicação e sincronização verificadas conforme capacidades do sistema
+Dirty              # alteração em memória não publicada
+Scheduled          # debounce aguardando
+Saving             # escrita/sincronização/publicação em andamento
+PublishedUnverified # destino pode ter sido atualizado, mas durabilidade não foi confirmada
+Error              # falha de gravação; preservar buffer e evidência do estágio atingido
+Conflict           # alteração externa impede publicação automática
 ```
 
-O usuário precisa distinguir **pendente**, **salvando**, **salvo**, **falha** e **conflito**. Estados podem ser simplificados na UI desde que nenhuma revisão não persistida seja indicada como salva.
+O usuário precisa distinguir **pendente**, **salvando**, **salvo com sincronização confirmada conforme suporte**, **publicação com durabilidade não verificada**, **falha** e **conflito**. Estados podem ser simplificados na UI sem apresentar conclusão segura quando a sincronização falhou, não é suportada ou teve resultado incerto. `PublishedUnverified` é um estado lógico proposto, não exige esse nome literal no código.
 
 ### 5.2. Sequência nominal
 
 1. Editor emite alteração e o `SaveCoordinator` incrementa `revision` da nota ativa.
-2. Debounce cancela/substitui agendamentos anteriores; **700 ms é valor inicial sugerido**, sujeito a validação.
-3. Ao disparar, coleta um snapshot imutável do conteúdo e revisão.
-4. Confere estado esperado em disco antes de publicar (fingerprint/versão esperada).
-5. Infraestrutura escreve **arquivo temporário no mesmo diretório**, confere erro de escrita/flush e realiza substituição atômica quando permitida.
-6. Registra resultado da revisão gravada. Se surgiram edições mais recentes, mantém estado pendente e agenda nova gravação.
-7. Comunica resultado ao contexto GTK sem bloquear o loop principal.
+2. Debounce cancela/substitui agendamentos anteriores; **700 ms é candidato inicial**, não valor fechado pela DT-05.
+3. Ao disparar, coleta snapshot imutável do conteúdo e da revisão e coordena escrita em sequência por nota (DT-04).
+4. Confere estado esperado em disco antes de publicar, preservando a proteção de alterações externas (DT-02).
+5. Escreve **arquivo temporário no mesmo diretório** e verifica sucesso integral da escrita e flush de buffers.
+6. **DT-05 aprovada (B):** solicita sincronização dos dados do temporário (ex.: operação equivalente a `fsync`/`sync_all`, conforme a plataforma), verificando resultado antes da publicação.
+7. Publica usando substituição atômica por rename **quando suportada pelo sistema e pelo diretório**, com revalidação necessária para evitar sobrescrita indevida.
+8. Solicita sincronização do **diretório de destino quando disponível** para reforçar persistência da alteração de entrada de diretório; tratar falha, indisponibilidade ou resultado desconhecido explicitamente.
+9. Registra separadamente a revisão **publicada** e o nível de **durabilidade verificado**. Se surgiram edições mais novas, elas continuam pendentes e não são marcadas como salvas por resultado antigo.
+10. Comunica o resultado ao contexto GTK sem bloquear o loop principal.
 
 ### 5.3. Garantias e limites
 
@@ -188,9 +192,24 @@ O usuário precisa distinguir **pendente**, **salvando**, **salvo**, **falha** e
 - Falhas preservam o buffer e deixam a revisão não salva; **não há garantia de recuperar memória após crash** sem journal/snapshot, que estão fora do MVP.
 - Evitar sobrescrever outro arquivo em caso de colisão de nome.
 - Verificar mudanças externas antes de operação destrutiva; **checagem separada e posterior rename não são, por si só, garantia contra TOCTOU**. PREP-02 deve escolher e testar uma política segura diante de múltiplos processos; não prometer segurança absoluta sem mecanismos do SO.
-- Publicação por rename atômico não implica durabilidade pós-perda de energia. Investigar flush/sync de arquivo e diretório e a garantia real do filesystem de referência.
+- **DT-05 aprovada (alternativa B):** exigir sincronização dos dados do arquivo temporário antes de publicar; solicitar sincronização da entrada do diretório após substituição **quando suportado**. Não confundir `flush` de buffers com garantia de persistência em mídia.
+- **Resultados por etapa:** se falhar antes da publicação, manter conteúdo em memória e não reportar revisão salva. Se houver falha **após** a substituição (inclusive na sincronização do diretório), o caminho de destino pode já conter a nova revisão, mas a **durabilidade não é verificada**: não executar rollback nem repetir cegamente a substituição; reconciliar observação do disco, revisão e fingerprint antes de tentar novamente.
+- **Sem suporte/sem garantia:** filesystem, montagem, hardware, diretório via portal Flatpak ou operação assíncrona podem não oferecer confirmação suficiente de sync ou rename atômico. Registrar e expor a limitação de forma proporcional, sem anunciar durabilidade confirmada. A política exata de UI para degradação fica para refinamento, mas não pode esconder erro ou incerteza.
+- Publicação atômica e sincronização **não garantem** recuperação absoluta diante de desligamento, falha de hardware, processo encerrado à força ou efeitos externos; a confiabilidade real depende das capacidades do ambiente. Não adicionar journal de recuperação como obrigação da DT-05.
 - A implementação não deve deixar temporários órfãos com conteúdo sensível, sempre que limpeza segura seja possível. Eventuais resíduos após crash devem ser tratados sem arriscar notas válidas.
 - Uma aplicação secundária ou edição por terceiro não autoriza sobrescrita silenciosa.
+
+### 5.3.1. Resultado de persistência e recuperação após falhas (DT-05)
+
+| Resultado observado | Estado lógico | Resposta exigida |
+| --- | --- | --- |
+| Falha antes de publicar | Edição pendente/erro | Preservar buffer, comunicar falha e permitir retentativa controlada |
+| Publicação confirmada e sincronizações aplicáveis concluídas | Revisão publicada com durabilidade verificada segundo os mecanismos disponíveis | Confirmar revisão correspondente, ressalvados os limites do filesystem |
+| Substituição ocorreu, mas sync do diretório falhou ou ficou indisponível | `PublishedUnverified` | Informar que o destino pode ter sido atualizado, mas durabilidade não foi verificada; manter buffer e reconciliar antes de repetir |
+| Resultado de publicação desconhecido | Estado incerto/erro | Não assumir que salvou nem que não salvou; inspecionar o destino de forma segura e preservar texto |
+| Alteração externa concorrente | `Conflict` | Bloquear publicação e seguir DT-02 |
+
+O contrato entre `SaveCoordinator` e adaptador de filesystem precisa retornar **estágio atingido e evidências**, não só `Result<(), Error>`. Erros de sync após publicação devem ser tratados de modo distinto de falha antes da publicação, inclusive na troca de nota/fechamento (DT-06). A sincronização reforçada deve ser avaliada no ambiente de referência sem bloquear a thread GTK.
 
 ### 5.4. Troca de nota, encerramento e erros
 
@@ -368,6 +387,7 @@ Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificaç
 | Títulos | caracteres permitidos, vazios, colisões, normalização, Unicode, extensão `.md` |
 | Domínio | seleção/revisão, regras independentes de GTK, erros previsíveis |
 | Salvamento | debounce, reordenação de resultados, revisão nova durante I/O, retry |
+| DT-05 — sincronização | Escrita/flush parcial, sync do temporário, publicação atômica quando suportada, sync do diretório, erro antes/depois do rename, resultado incerto, ambiente/portal sem sync disponível, buffer e estado coerentes |
 | Filesystem | escrita temporária, substituição, falha simulada, arquivo removido, acesso negado |
 | DT-03 — lixeira | Confirmação/cancelamento, sucesso, lixeira não suportada, acesso negado, pasta via portal, item alterado externamente, nenhuma exclusão permanente como fallback |
 | DT-04 — instância e serialização | Lançamento repetido na mesma sessão; reativação da janela mantendo buffer, conflitos e autosave; concorrência de gravação/renomeação/lixeira/migração; recuperação após encerramento; edição externa ainda detectada |
@@ -403,7 +423,7 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | Requisitos de produto | Módulos/contratos predominantes | Teste principal |
 | --- | --- | --- |
 | RF-01–08 | feature `notes` + porta de repositório seletiva | unitário e integração de filesystem |
-| RF-09–14 | feature `notes` (SaveCoordinator + adaptador) | unitário, integração e falhas |
+| RF-09–14 | feature `notes` (SaveCoordinator + adaptador), incluindo estágios de persistência DT-05 | unitário, integração, falhas antes/depois da publicação e estados de durabilidade |
 | RF-15–22 | features `notes`/`appearance`/`storage` + GSettings | teste manual de interface |
 | RF-23 | feature `export` + portal | integração e teste manual |
 | RF-24 | feature de UI/localização + gettext | checagem de tradução e teste manual |
@@ -414,12 +434,11 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 
 ## 12. Decisões técnicas pendentes — não aprovadas
 
-**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. **DT-04 — A:** instância única por sessão da aplicação; novas ativações acionam a janela existente; operações internas serializadas, sem presumir proteção global contra editores externos. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
+**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. **DT-04 — A:** instância única por sessão da aplicação; novas ativações acionam a janela existente; operações internas serializadas, sem presumir proteção global contra editores externos. **DT-05 — B:** sincronizar dados do temporário, publicar via substituição atômica quando suportada e sincronizar o diretório quando disponível, distinguindo publicação de durabilidade verificada e resultados incertos. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
 
 | Prioridade | ID | Decisão a tomar | Alternativas a investigar |
 | --- | --- | --- | --- |
 
-| Alta | DT-05 | Política exata de debounce, flushing, sincronização e confirmação de salvamento | limites e operações suportadas pelo SO |
 | Alta | DT-06 | Comportamento de saída/troca com alteração não salva | impedir fluxo / preservar temporário ou cópia / confirmação explícita |
 | Alta | DT-07 | Política de exportação com conflitos e falhas parciais | abortar / continuar e relatar / manter arquivos anteriores |
 | Alta | DT-08 | Versão específica do runtime GNOME e toolchain | matriz de compatibilidade e manutenção |
@@ -434,13 +453,13 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | Alta | DT-18 | Permissões e operações na pasta padrão e alternativa com Flatpak | `xdg-documents` + portal; verificar persistência e escrita atômica em FUSE |
 | Média | DT-21 | Como lembrar a confirmação inicial da DT-19 por pasta | GSettings com referência à pasta / confirmação por sessão; sem criar índice de notas |
 
-**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 estão aprovadas. A primeira rodada de decisões críticas de integridade foi concluída; **próxima proposta de refinamento: DT-05 — política de salvamento, flush e sincronização**, seguida de DT-06 — saída/troca com alterações pendentes, e DT-18 — permissões de armazenamento Flatpak. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
+**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 estão aprovadas. A primeira rodada de decisões críticas de integridade e a DT-05 foram aprovadas; **próxima decisão: DT-06 — saída/troca com alterações pendentes**, seguida de DT-09 — identificação de alterações externas e DT-18 — permissões de armazenamento Flatpak. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
 
 ## 13. Critérios de conclusão da PREP-02
 
 Para declarar a PREP-02 aprovada, precisamos:
 1. Verificar cobertura de RF-01–RF-27 e RNF-01–RNF-16.
-2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 aprovadas, validando os limites de instância única e mantendo conflitos externos protegidos; as demais decisões pendentes devem ser refinadas conforme risco antes do backlog.
+2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02, DT-03, DT-04 e DT-05 aprovadas; verificar limites de instância única, salvamento reforçado e conflitos externos, refinando as demais decisões conforme risco antes do backlog.
 3. Estabelecer contratos operacionais de salvamento, renomeação, exclusão, troca de pasta e exportação suficientemente testáveis.
 4. Definir a versão de runtime/SDK e principais dependências durante o planejamento, antes da implementação que delas dependa; considerar a validação de permissões e publicação atômica em pastas selecionadas.
 5. Definir limites verificáveis de acessibilidade e falhas.
