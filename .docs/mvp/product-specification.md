@@ -77,7 +77,7 @@ Uma **nota** possui:
 
 O caminho da nota **não é uma identidade imutável**: a renomeação altera o nome físico. O MVP deve lidar com isso sem perder a nota aberta ou sobrescrever outra nota.
 
-**Diretório de armazenamento:** por padrão, as notas residem diretamente no diretório especial **Documentos** configurado para o usuário (XDG user directory; por exemplo, `/home/<USER>/Documentos` em ambiente pt-BR). O usuário pode selecionar outro diretório. Não se presume a criação automática de uma subpasta `Oak Note`. **DT-17 aprovada (alternativa C):** ao alterar o diretório ativo, o usuário escolhe explicitamente entre **manter as notas na pasta original** e **migrá-las para a nova pasta**. Não mover ou apagar arquivos implicitamente. A estratégia de migração segura, conflitos e falhas será refinada na PREP-02.
+**Diretório de armazenamento:** por padrão, as notas residem diretamente no diretório especial **Documentos** configurado para o usuário (XDG user directory; por exemplo, `/home/<USER>/Documentos` em ambiente pt-BR). O usuário pode selecionar outro diretório. Não se presume a criação automática de uma subpasta `Oak Note`. **DT-17 aprovada (alternativa C):** ao alterar o diretório ativo, o usuário escolhe explicitamente entre **manter as notas na pasta original** e **migrá-las para a nova pasta**. Não mover ou apagar arquivos implicitamente. **DT-20 aprovada (alternativa B):** quando houver migração autorizada, copiar todas as notas, validar a integridade das cópias, **ativar o novo destino apenas após a validação completa** e remover os arquivos originais somente após **confirmação explícita adicional e verificações de segurança**. Erros não podem causar exclusão silenciosa; não há garantia de transação atômica entre pastas. O detalhamento de falhas parciais e recuperação permanece na PREP-02.
 
 **DT-19 aprovada (alternativa B):** no primeiro acesso a uma pasta que já contenha arquivos `.md` diretamente na **raiz**, o Oak Note informa que esses arquivos serão reconhecidos como notas e solicita confirmação. O usuário pode aceitar ou escolher outra pasta. Não há busca em subdiretórios, cópia/importação nem alteração de arquivos por causa desse reconhecimento. A forma de lembrar a confirmação por pasta será refinada na PREP-02.
 
@@ -191,7 +191,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** artefato Flatpak da versão `0.1.0` pode ser instalado, aberto e encerrado no ambiente de referência; Application ID é `io.github.rafaelcarvalho89.oaknote`; publicação exige aprovação e inclui notas de versão.
 
 **RF-26 — Configurar diretório das notas.** Por padrão, utilizar a pasta XDG **Documentos** do usuário e permitir selecionar outro diretório para o conjunto de notas gerenciado.  
-**Aceite:** em instalação inicial, o aplicativo reconhece a pasta Documentos configurada pelo sistema; exibe o diretório ativo; permite selecionar pasta alternativa e persiste a seleção; restaura o diretório escolhido ao reiniciar; informa indisponibilidade e ausência de permissão sem redirecionar ou perder notas silenciosamente. Ao trocar de pasta, **oferece escolha explícita entre manter as notas na origem e migrá-las**, sem movimentação ou remoção silenciosa. **Se a pasta selecionada contiver arquivos `.md` preexistentes na raiz, aplicar a confirmação da DT-19 antes de reconhecê-los como notas.** Falhas, conflitos e cancelamentos precisam preservar os dados e ser comunicados.
+**Aceite:** em instalação inicial, o aplicativo reconhece a pasta Documentos configurada pelo sistema; exibe o diretório ativo; permite selecionar pasta alternativa e persiste a seleção; restaura o diretório escolhido ao reiniciar; informa indisponibilidade e ausência de permissão sem redirecionar ou perder notas silenciosamente. Ao trocar de pasta, **oferece escolha explícita entre manter as notas na origem e migrá-las**, sem movimentação ou remoção silenciosa. **Se a pasta selecionada contiver arquivos `.md` preexistentes na raiz, aplicar a confirmação da DT-19 antes de reconhecê-los como notas.** Na opção **migrar**, copiar sem sobrescrever arquivos existentes, conferir todas as cópias antes de ativar o novo destino e solicitar confirmação explícita antes de remover originais. Revalidar as condições de exclusão e preservar qualquer original cuja remoção não seja segura. Falhas, conflitos e cancelamentos precisam preservar os dados e ser comunicados.
 
 ## 6. Requisitos não funcionais (RNF)
 
@@ -271,10 +271,13 @@ Os RNFs 05 e 06 não estabelecem, nesta etapa, garantias absolutas de durabilida
 4. Se o novo diretório já possuir arquivos `.md` na raiz e for seu primeiro acesso, informa que eles serão reconhecidos como notas e exige confirmação ou a escolha de outra pasta (DT-19).
 5. Apresenta opção explícita de **manter as notas na pasta anterior** ou **migrá-las para a pasta selecionada**.
 6. Ao escolher manter, preserva integralmente os arquivos de origem e passa a utilizar a pasta de destino.
-7. Ao escolher migrar, coordena transferências e verifica conflitos, sem sobrescrever arquivos existentes ou remover notas silenciosamente.
-8. Persiste a escolha de pasta quando a troca for concluída com segurança; caso contrário, comunica o problema e permite cancelar ou resolver.
+7. Ao escolher migrar, conclui as gravações pendentes, verifica conflitos e **copia todas as notas** para o destino sem sobrescrever arquivos existentes.
+8. Verifica a integridade de todas as cópias; somente após êxito **ativa e persiste** a nova pasta como destino de notas.
+9. Solicita **confirmação explícita adicional** para remover os arquivos originais, revalidando a segurança da operação; nenhuma remoção acontece automaticamente.
+10. Se a cópia ou a validação falhar, a pasta anterior permanece ativa e os originais são preservados; eventuais cópias parciais são identificadas e tratadas com segurança.
+11. Se a remoção de originais falhar após a ativação da nova pasta, informa o resultado parcial e preserva os arquivos remanescentes; não assume nem anuncia limpeza concluída.
 
-**Pendente na PREP-02:** operação de transferência, comportamento em migração parcial, notas com alterações pendentes, nomes duplicados e momento de ativação da nova pasta.
+**Pendente na PREP-02:** detalhamento operacional da cópia/validação, novas edições ou alterações externas durante a transferência, remoção parcial dos originais, retomada após interrupção e limpeza de cópias incompletas. As etapas de ativação e confirmação de remoção estão aprovadas pela DT-20.
 
 ## 8. Estados da experiência
 
@@ -319,7 +322,7 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-13 — Pasta de notas:** em instalação inicial utilizar a pasta XDG Documentos disponível; selecionar outra pasta, reiniciar e verificar persistência, listagem e escrita no novo destino; simular acesso negado e remoção do diretório sem perda silenciosa.
 
-**CA-14 — Escolha de migração:** ao trocar o diretório, escolher **manter** e confirmar que notas anteriores permaneceram intactas; escolher **migrar** e verificar conteúdo no destino e tratamento de arquivos já existentes; cancelar a mudança sem efeitos inesperados; injetar falha de I/O e comprovar que não houve perda silenciosa.
+**CA-14 — Escolha de migração:** ao trocar o diretório, escolher **manter** e confirmar que notas anteriores permaneceram intactas; escolher **migrar**, copiar e validar **todas** as notas antes de ativar o destino; não sobrescrever arquivos existentes; solicitar confirmação explícita para remover originais **depois** da ativação e revalidar sua segurança. Cancelamento, falha de I/O, colisão e migração parcial não podem apagar originais silenciosamente. Falha na limpeza posterior deve ser informada sem desativar automaticamente a pasta nova já validada.
 
 **CA-15 — Arquivos Markdown preexistentes:** no primeiro acesso a uma pasta com `.md` na raiz, solicitar confirmação; ao aceitar, listá-los sem alterar seu conteúdo; ao escolher outra pasta, não abri-los nem modificá-los. Diretórios sem `.md` não exigem confirmação; subpastas não são percorridas.
 
@@ -379,7 +382,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-12 | Detalhes de GSettings, esquema de versão, valores padrão e fallback de idioma | Persistência | PREP-02 |
 | QA-13 | Versão final suportada do SDK/runtime Flatpak, permissões e metadados definitivos | Distribuição | PREP-02 |
 | QA-14 | Mapeamento final dos atalhos internos e orientação do atalho no GNOME | Acessibilidade | PREP-02 |
-| QA-15 | **DT-17 aprovada: oferecer escolha entre manter e migrar**. Detalhar operação de migração, conflitos, falhas parciais e comutação do diretório ativo | Integridade e experiência | PREP-02 |
+| QA-15 | **DT-17/DT-20 aprovadas:** oferecer manter ou migrar; migração por cópia integral e verificação antes de ativar destino, com confirmação adicional antes da remoção. Detalhar recuperação, falhas parciais e concorrência externa | Integridade e experiência | PREP-02 |
 | QA-16 | Permissões do Flatpak/portal, localização XDG Documentos indisponível e **persistência da confirmação DT-19 por pasta**, sem índice de notas | Acesso a dados | PREP-02 |
 
 ## 13. Rastreabilidade e diretrizes aprovadas
@@ -396,6 +399,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-01 | Nome duplicado: sugerir nome alternativo e permitir aceitar/editar, sem sobrescrever |
 | DT-17 | Troca de pasta: escolher manter notas na origem ou migrá-las, sem movimentação silenciosa |
 | DT-19 | Confirmar reconhecimento de `.md` existentes na raiz no primeiro acesso ou selecionar outra pasta; sem recursão |
+| DT-20 | Migrar: copiar tudo sem sobrescrever, validar antes de ativar destino, confirmar explicitamente antes de remover originais e verificar segurança |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
