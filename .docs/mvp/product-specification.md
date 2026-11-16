@@ -92,7 +92,9 @@ O caminho da nota **não é uma identidade imutável**: a renomeação altera o 
 
 **DT-06 aprovada (alternativa B):** ao trocar de nota ou encerrar, o aplicativo tenta concluir as gravações pendentes antes de prosseguir. Se houver falha ou durabilidade incerta, oferece **tentar novamente**, **cancelar a ação e continuar editando** ou **descartar conscientemente as alterações locais**, com confirmação específica e aviso de que não há garantia de recuperação. Não descarta conteúdo silenciosamente nem anuncia conclusão segura quando a DT-05 não a confirmou. Conflitos externos continuam sujeitos às opções da **DT-02**, não a uma sobrescrita forçada. Encerramento imposto pelo sistema operacional não é controlável com garantia.
 
-**DT-02 aprovada (alternativa B):** se uma nota aberta tiver sido modificada, substituída, removida ou renomeada externamente, o Oak Note **bloqueia qualquer sobrescrita automática** do caminho afetado e sinaliza conflito. Oferece três ações: **recarregar a versão externa** (confirmando antes de descartar edições locais); **salvar a edição local como nova nota** (respeitando a sugestão editável de nome da DT-01 e sem substituir a versão externa); ou **cancelar**, mantendo o buffer e o conflito pendentes. Nenhum desses caminhos pode perder silenciosamente alterações. A detecção e a resolução operacional serão detalhadas na PREP-02.
+**DT-02 aprovada (alternativa B):** se uma nota aberta tiver sido modificada, substituída, removida ou renomeada externamente, o Oak Note **bloqueia qualquer sobrescrita automática** do caminho afetado e sinaliza conflito. Oferece três ações: **recarregar a versão externa** (confirmando antes de descartar edições locais); **salvar a edição local como nova nota** (respeitando a sugestão editável de nome da DT-01 e sem substituir a versão externa); ou **cancelar**, mantendo o buffer e o conflito pendentes. Nenhum desses caminhos pode perder silenciosamente alterações.
+
+**DT-09 aprovada (alternativa B):** manter em memória, ao carregar cada nota, um **fingerprint com metadados e hash do conteúdo**, a ser comparado com o estado atual antes de salvar/substituir, renomear, mover para a lixeira ou realizar etapas destrutivas da migração. Identidade alterada, arquivo ausente ou conteúdo divergente impedem a operação automática, acionando a DT-02 quando pertinente. A verificação ocorre sob demanda, **sem monitoramento contínuo obrigatório**; não oferece prevenção absoluta de mudanças concorrentes entre conferência e operação (TOCTOU). Não persistir hashes no Markdown ou em índice de notas.
 
 A substituição atômica não significa garantia absoluta contra perda de dados em falha de hardware ou energia, nem substitui backups.
 
@@ -155,7 +157,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** ao trocar de nota ou fechar, o aplicativo tenta concluir as gravações pendentes. Se houver erro, resultado desconhecido ou durabilidade não confirmada, apresenta **tentar novamente**, **cancelar troca/fechamento e continuar editando** ou **descartar conscientemente as alterações locais mediante confirmação específica**, sem tratar a revisão como salva com segurança. O descarte é decisão explícita, com aviso do risco; não apaga automaticamente o arquivo de disco nem garante recuperação posterior. Conflitos externos são resolvidos conforme DT-02; ao fechar com várias notas pendentes, cada edição não confirmada exige tratamento, sem perda silenciosa. Encerramento forçado pelo sistema pode não permitir diálogo (DT-06).
 
 **RF-13 — Detectar conflitos externos.** Não sobrescrever modificações feitas fora do Oak Note sem tratamento.  
-**Aceite:** quando um arquivo aberto for alterado, substituído, removido ou renomeado externamente desde a leitura, o aplicativo identifica o conflito antes de publicar alterações locais, **bloqueia sobrescrita automática** e oferece: (1) **recarregar a versão externa**, após confirmação explícita caso haja edição local pendente; (2) **salvar a edição local como nova nota**, com sugestão editável de nome (DT-01) e sem sobrescrever a versão externa; (3) **cancelar**, mantendo o texto no buffer e o conflito ativo. Nenhuma ação descarta alterações silenciosamente.
+**Aceite:** ao carregar uma nota, registrar em memória metadados disponíveis e hash do conteúdo (DT-09); antes de operações potencialmente destrutivas, compará-los com o arquivo atual, inclusive quando tamanho e data de modificação coincidirem. Se a nota tiver sido modificada, substituída, removida ou renomeada externamente desde a leitura, **bloquear sobrescrita automática** e oferecer: (1) **recarregar a versão externa**, após confirmação explícita caso haja edição local pendente; (2) **salvar a edição local como nova nota**, com sugestão editável de nome (DT-01), sem sobrescrever a versão externa; (3) **cancelar**, preservando o buffer e o conflito. Falha na verificação não autoriza exclusão ou gravação destrutiva. Nenhuma ação descarta alterações silenciosamente.
 
 **RF-14 — Tratar erros de arquivo.** Comunicar falhas de leitura, gravação, renomeação, exclusão e exportação.  
 **Aceite:** o usuário recebe mensagem contextualizada; o aplicativo preserva, sempre que possível, o estado editável e não registra o conteúdo da nota nos logs.
@@ -325,6 +327,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-05 — Alteração externa:** modificar, remover ou substituir uma nota fora do Oak Note durante sua edição; confirmar bloqueio do autosave no caminho afetado e apresentação das três ações da DT-02. Recarregar não descarta alterações locais sem confirmação; salvar como nova nota respeita DT-01 e preserva a versão externa; cancelar mantém a edição e o conflito pendentes.
 
+**CA-20 — Fingerprint de alterações externas (DT-09):** carregar arquivo e comparar metadados e hash sob demanda antes de salvar, renomear, enviar à lixeira e remover originais em migração. Detectar conteúdo alterado com **mesmo tamanho e mtime**, substituição do arquivo por outro, remoção e erro de leitura, sem operação destrutiva automática. Testar que o fingerprint é atualizado após gravação confirmada da revisão correta, que a edição permanece em memória no conflito e que a verificação não é apresentada como bloqueio atômico contra outros processos.
+
 **CA-06 — Arquivos portáveis:** inspecionar arquivos criados/renomeados em editor externo; confirmar Markdown puro e título coerente com o nome físico.
 
 **CA-16 — Exclusão pela lixeira:** cancelar exclusão preserva arquivo e lista; confirmar move a nota para a lixeira quando suportado; a lista é atualizada somente após sucesso. Simular lixeira indisponível, acesso negado e erro de operação: o arquivo permanece no local e **nunca** há exclusão definitiva substitutiva. Antes da operação, verificar edição pendente e alteração externa sem apagar revisão inesperada.
@@ -401,7 +405,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-02 | Detalhes de formato da sugestão de nome alternativo e título inicial (a política de **sugestão editável** já está aprovada na DT-01) | Criação e renomeação | PREP-02 |
 | QA-03 | Mecanismo de referência à nota durante renomeação, sem ID persistente | Seleção e concorrência | PREP-02 |
 | QA-04 | **DT-05 aprovada:** sincronizar dados do temporário, publicar por substituição atômica quando suportada e sincronizar diretório quando disponível; **DT-06 aprovada:** oferecer retry, cancelar ou descarte confirmado em troca/fechamento. Detalhar debounce, estados incertos e compatibilidade real | Proteção dos dados | PREP-02 |
-| QA-05 | **DT-02 aprovada:** recarregar com confirmação, salvar edição local como nova nota ou cancelar mantendo conflito; detalhar detecção, arquivo ausente/renomeado, fechamento e concorrência | Proteção dos dados | PREP-02 |
+| QA-05 | **DT-02 aprovada:** recarregar, salvar local como nova nota ou cancelar; **DT-09 aprovada:** comparar metadados + hash em memória antes de operações destrutivas. Refinar algoritmo, fingerprint indisponível, TOCTOU e arquivo ausente/renomeado | Proteção dos dados | PREP-02 |
 | QA-06 | **DT-03 aprovada:** enviar nota à lixeira após confirmação; se indisponível ou falhar, informar erro sem excluir definitivamente. Detalhar suporte GIO/Flatpak e validações pré-exclusão | Segurança do usuário | PREP-02 |
 | QA-07 | **DT-04 aprovada:** instância única por sessão, ativações encaminhadas à janela existente, operações internas serializadas. Refinar limites entre sessões/instalações, arquivos ausentes, symlinks e concorrência externa | Robustez | PREP-02 |
 | QA-08 | Semântica de pesquisa (acentos, maiúsculas e correspondência parcial), empates de ordenação | Consistência de uso | PREP-02 |
@@ -434,6 +438,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-04 | Uma instância ativa por sessão, com reativação da janela existente e serialização interna; conflitos externos permanecem protegidos |
 | DT-05 | Salvamento reforçado: sync do temporário, substituição atômica quando suportada, sync de diretório quando disponível e distinção entre publicação e durabilidade comprovada |
 | DT-06 | Antes de trocar ou encerrar, tentar salvar; em erro ou resultado incerto, oferecer retry, cancelar para editar ou descartar mediante confirmação; conflitos seguem DT-02 |
+| DT-09 | Detectar alterações externas com metadados + hash do conteúdo em memória, comparados sob demanda antes de operações destrutivas; sem monitoramento contínuo obrigatório |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -441,6 +446,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 19 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 20 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
