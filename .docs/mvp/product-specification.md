@@ -144,7 +144,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** **DT-12 aprovada (alternativa B):** pesquisar por **trecho do título** com normalização Unicode canônica e *case folding* aplicados tanto ao texto da consulta quanto aos títulos. Diferenças de caixa e de representação Unicode canonicamente equivalente não impedem correspondência, mas **acentos distintos são significativos**: `café` e `cafe` não se equivalem. Não pesquisar no conteúdo dos arquivos; consulta vazia restaura a lista integral. A pesquisa não altera nomes físicos, títulos ou conteúdo.
 
 **RF-08 — Ordenar notas.** Mostrar as notas da mais recentemente modificada para a menos recente.  
-**Aceite:** a listagem usa os metadados de modificação disponíveis no filesystem; alterações salvas podem mudar a posição da nota; empates e metadados indisponíveis têm tratamento determinístico a definir.
+**Aceite:** **DT-13 aprovada (alternativa A):** ordenar primeiro pelo `mtime` real disponível, **decrescente**; notas com `mtime` ausente ou inválido ficam **depois** das notas com data válida. Em empate de `mtime` ou entre notas sem data, desempatar pelo **título Unicode normalizado** e, por último, pelo **caminho/nome físico** com comparação determinística. A normalização usada na ordenação não altera os nomes persistidos e não significa ordenação linguística dependente de locale. Uma gravação confirmada pode reposicionar a nota ao atualizar o `mtime` efetivo; não inventar timestamp nem reordenar com base apenas no início de um autosave ou em um resultado incerto.
 
 ### 5.2. Salvamento, conflitos e diagnóstico
 
@@ -347,7 +347,7 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-19 — Troca e encerramento seguros (DT-06):** com nota alterada, tentar trocar ou fechar e verificar tentativa de salvar antes de prosseguir. Simular erro antes da publicação, resultado incerto e falha de sync após publicação: exibir **tentar novamente**, **cancelar** ou **descartar com confirmação específica**, preservando a edição ao cancelar e sem informar falsamente salvamento seguro. Com conflito externo, manter opções da DT-02. Com várias notas pendentes, não concluir fechamento com descarte silencioso. Confirmar que encerrar à força não oferece garantia de recuperação.
 
-**CA-07 — Navegação:** criar várias notas, pesquisar pelo título, ordenar por modificação e recolher/expandir a barra lateral sem perda de edição; validar que o recolhimento automático por largura não modifica a preferência manual da lateral. A busca consulta apenas títulos e segue normalização/case folding da DT-12.
+**CA-07 — Navegação:** criar várias notas, pesquisar pelo título, ordenar por modificação e recolher/expandir a barra lateral sem perda de edição; validar que o recolhimento automático por largura não modifica a preferência manual da lateral. A busca consulta apenas títulos e segue normalização/case folding da DT-12; empates e datas ausentes seguem a DT-13.
 
 **CA-08 — Aparência:** alternar Sistema/Claro/Escuro, variar transparência inicial de 0–70% e reiniciar; confirmar persistência, fundo opaco em 0%, transparência seletiva no cabeçalho, editor e lateral, opacidade dos textos e controles, e ausência de click-through.
 
@@ -376,6 +376,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 **CA-26 — Layout adaptativo e lateral manual (DT-11):** alternar larguras ampla/estreita/ampla com lateral manualmente visível e manualmente oculta; em largura estreita, editor permanece utilizável e lateral se recolhe automaticamente, com navegação acessível por controle e teclado. Ao voltar à largura ampla, restaurar exclusivamente a preferência manual (não o último recolhimento automático). Testar maximização, reinício, notas com edições não salvas, escala/idioma pt-BR/en-US e controles acessíveis. Documentar largura/altura mínima e limiar de adaptação após testes reais, sem pressupor números.
 
 **CA-27 — Busca Unicode e atalhos (DT-12):** pesquisar `projeto` deve encontrar `Projeto Oak`; `CAFÉ` deve encontrar `Café`; `cafe` não deve corresponder a `Café`; formas Unicode canonicamente equivalentes e diferenças de caixa devem produzir o mesmo resultado. Verificar correspondência por trecho, consulta vazia, título sem alteração e nenhuma busca pelo corpo da nota. Testar `Ctrl+N`, `Ctrl+F`, `F9`, `Ctrl+,` e `Esc` com foco no editor, busca e diálogos; não capturar atalhos globais, não descartar buffer e não violar o estado manual/responsivo da lateral (DT-11).
+
+**CA-28 — Ordenação estável (DT-13):** criar notas com `mtime` distintos, iguais e indisponíveis; datas válidas descem do mais recente ao mais antigo e notas sem data ficam por último. Em empate e no grupo sem data, ordenar por título Unicode normalizado e caminho/nome físico como desempate determinístico, com estabilidade entre listagens repetidas, idiomas e ordens de enumeração do filesystem. Testar nomes com maiúsculas/minúsculas, acentos e formas Unicode equivalentes; criar/renomear/salvar nota e verificar atualização somente conforme metadados reais confirmados, sem inventar timestamp durante erro ou gravação pendente.
 
 **Nota de escopo:** a DT-03 rege a **exclusão individual solicitada pelo usuário**. A limpeza de arquivos de origem após uma migração confirmada continua sujeita à DT-20, com política operacional própria a ser refinada.
 
@@ -428,7 +430,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-05 | **DT-02 aprovada:** recarregar, salvar local como nova nota ou cancelar; **DT-09 aprovada:** comparar metadados + hash em memória antes de operações destrutivas. Refinar algoritmo, fingerprint indisponível, TOCTOU e arquivo ausente/renomeado | Proteção dos dados | PREP-02 |
 | QA-06 | **DT-03 aprovada:** enviar nota à lixeira após confirmação; se indisponível ou falhar, informar erro sem excluir definitivamente. Detalhar suporte GIO/Flatpak e validações pré-exclusão | Segurança do usuário | PREP-02 |
 | QA-07 | **DT-04 aprovada:** instância única por sessão, ativações encaminhadas à janela existente, operações internas serializadas. Refinar limites entre sessões/instalações, arquivos ausentes, symlinks e concorrência externa | Robustez | PREP-02 |
-| QA-08 | **DT-12 aprovada:** busca parcial de títulos com normalização Unicode canônica + case folding, sem remover acentos; testar caracteres especiais e equivalência canônica. **DT-13 pendente:** empates de ordenação | Consistência de uso | PREP-02 |
+| QA-08 | **DT-12 aprovada:** busca parcial com Unicode canônico + case folding sem eliminar acentos. **DT-13 aprovada:** `mtime` decrescente, sem data ao final e desempate determinístico por título Unicode normalizado e caminho físico; testar precisão, ausência de timestamp e estabilidade | Consistência de uso | PREP-02 |
 | QA-09 | **DT-10 aprovada:** transparência inicial de 0–70% nos fundos da janela principal e superfícies auxiliares opacas; validar contraste/legibilidade real, reduzindo máximo se necessário; detalhar testes e critérios visuais verificáveis | Acessibilidade visual | PREP-02 |
 | QA-10 | **DT-11 aprovada:** recolhimento automático da barra lateral em janela estreita e prioridade ao editor, independente do estado manual persistido; validar mínimo de largura/altura, breakpoint, navegação/teclado, escala e locais pt-BR/en-US | Usabilidade | PREP-02 |
 | QA-11 | **DT-07 aprovada:** continuar após colisões e falhas individuais recuperáveis, sem sobrescrever; relatar exportados, ignorados, erros e cancelamentos. Detalhar cópia segura, resultados incertos, destino igual à origem e erros que impedem continuar | Proteção das cópias | PREP-02 |
@@ -466,6 +468,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-10 | Transparência inicial 0–70% nos fundos do cabeçalho, editor e lateral; textos/controles opacos e fundos de diálogos, menus, popovers e preferências opacos; reduzir máximo se testes exigirem |
 | DT-11 | Adaptar layout por largura com recolhimento automático da lateral, priorizando editor; manter preferência manual independente, sem fixar dimensões e limiar antes dos testes |
 | DT-12 | Busca parcial somente em títulos com Unicode canônico + case folding, mantendo acentos significativos; atalhos internos GNOME `Ctrl+N`, `Ctrl+F`, `F9`, `Ctrl+,`, `Esc` contextual, sem captura global |
+| DT-13 | Ordenar por `mtime` real decrescente, colocar notas sem `mtime` ao final; desempatar por título Unicode normalizado e caminho físico determinístico, sem depender do locale ou da ordem de enumeração |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -473,6 +476,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 27 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 28 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
