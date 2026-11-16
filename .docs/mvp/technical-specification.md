@@ -134,7 +134,7 @@ NoteSnapshot
 - Não considerar a área privada do Flatpak o destino padrão das notas; dados operacionais internos e configurações podem continuar em áreas próprias.
 - Se o diretório padrão ou escolhido estiver indisponível, informar e solicitar intervenção, **sem redirecionar silenciosamente** e sem apagar/transportar arquivos.
 - A pasta Documentos pode conter `.md` criados fora do Oak Note. A política aprovada na **DT-19** exige confirmação inicial para reconhecer arquivos `.md` preexistentes na raiz, sem acessar subpastas ou modificar arquivos apenas pelo reconhecimento.
-- **DT-19 aprovada (alternativa B):** ao primeiro acesso a pasta com arquivos `.md` **preexistentes na raiz**, informar que serão reconhecidos como notas e solicitar confirmação. Oferecer **aceitar** ou **selecionar outra pasta**; antes da confirmação, não apresentar/abrir o conteúdo como nota. A detecção não percorre subdiretórios, não importa arquivos nem os altera. Pastas sem arquivos `.md` na raiz não exigem confirmação. A forma de lembrar a autorização por pasta será refinada (DT-21), sem índice das notas.
+- **DT-19 aprovada (alternativa B):** ao primeiro acesso a pasta com arquivos `.md` **preexistentes na raiz** e sem confirmação anterior válida, informar que serão reconhecidos como notas e solicitar confirmação. Oferecer **aceitar** ou **selecionar outra pasta**; antes da confirmação, não apresentar/abrir o conteúdo como nota. A detecção não percorre subdiretórios, não importa arquivos nem os altera. Pastas sem arquivos `.md` na raiz não exigem confirmação. **DT-21 aprovada (alternativa A):** persistir o consentimento de reconhecimento **por diretório** no esquema GSettings único, para evitar perguntar novamente ao revisitar uma pasta validamente reconhecida; esse consentimento não concede acesso via portal nem registra notas individualmente.
 - **DT-17 aprovada (alternativa C):** ao trocar a pasta ativa, oferecer opção explícita de **manter notas na origem** ou **migrá-las para a pasta selecionada**. Manter preserva os arquivos na origem; migrar é regido pela **DT-20 aprovada (alternativa B)**: copiar integralmente, validar cópias, ativar destino após validação completa e exigir confirmação explícita adicional, com verificações de segurança, antes de remover originais. A migração entre pastas não é uma única transação atômica; falhas parciais e recuperação exigem tratamento.
 
 **DT-18 aprovada (alternativa A):** conceder ao Flatpak acesso estático de leitura/escrita **somente ao diretório XDG Documentos** (`--filesystem=xdg-documents`; sem `:ro`), reconhecendo que isso expõe toda a pasta Documentos ao aplicativo. Para locais alternativos, solicitar seleção explícita pelo **FileChooser Portal**, sem adicionar `--filesystem=home`, `host` ou permissões arbitrárias como fallback. Antes de ativar uma pasta alternativa, verificar capacidades indispensáveis de gerenciamento com segurança; validar continuidade do acesso entre reinícios. Se o acesso ou operação necessária falhar, explicar o problema e preservar o destino anterior. A escolha é arquitetural, **não validação técnica da capacidade do portal**. O caminho mediado por Documents Portal/FUSE pode não suportar todas as semânticas de filesystem exigidas (DT-03/05/09/20).
@@ -150,7 +150,7 @@ Referências oficiais:
 
 **DT-01 aprovada — alternativa B:** em caso de colisão, **sugerir nome alternativo disponível** (ex.: `Ideias (2).md`), com possibilidade de aceitar ou editar antes de confirmar. **Nunca substituir arquivo existente**. A normalização de caracteres, extensão, casefold, números de sufixo e o nome inicial sugerido ainda exigem detalhamento.
 
-Listar somente arquivos regulares apropriados **na raiz** do diretório ativo; sem busca recursiva. Condicionar o reconhecimento de arquivos `.md` preexistentes no primeiro acesso à confirmação do usuário (DT-19). Definir política sobre symlinks e arquivos não regulares antes do desenvolvimento; não presumir que entradas externas sejam seguras.
+Listar somente arquivos regulares apropriados **na raiz** do diretório ativo; sem busca recursiva. Condicionar o reconhecimento de arquivos `.md` preexistentes sem consentimento válido à confirmação do usuário (DT-19/DT-21). Definir política sobre symlinks e arquivos não regulares antes do desenvolvimento; não presumir que entradas externas sejam seguras.
 
 ### 4.4. Fonte de verdade e reordenação
 
@@ -374,6 +374,7 @@ Usar gettext para textos próprios da interface em pt-BR e inglês, com fallback
 | --- | --- | --- | --- |
 | `color-scheme` | enum/string | `system` | Preferência |
 | `notes-directory` | URI/caminho GFile serializável (formato final a decidir) | diretório especial XDG Documentos | Preferência |
+| `confirmed-notes-directories` | conjunto/lista de referências a diretórios aceitos (representação final a definir) | vazio | Consentimento de reconhecimento por diretório (DT-21), **não permissão de filesystem** |
 | `background-transparency` | inteiro 0–70 | 0 | Preferência |
 | `sidebar-visible` | boolean | true | Preferência |
 | `window-width` | inteiro positivo | 800 | Estado |
@@ -386,6 +387,21 @@ Usar gettext para textos próprios da interface em pt-BR e inglês, com fallback
 - O domínio não depende da API GSettings.
 - Valores inválidos, referências perdidas e configurações antigas recebem tratamento seguro.
 - A pasta escolhida deve ser persistida sem depender de um caminho hardcoded no host; quando obtida via portal, verificar validade do identificador/caminho e autorização ao reiniciar.
+
+### 8.1. Confirmação por diretório — DT-21 aprovada (alternativa A)
+
+**Contrato de produto:** o Oak Note lembra, no esquema GSettings já definido pela ADR-04, cada pasta cuja inclusão de arquivos `.md` da raiz foi explicitamente aceita segundo a DT-19. Ao retornar a uma pasta reconhecida com referência válida, não solicitar novamente a confirmação. A configuração não guarda lista de arquivos, conteúdo, hashes das notas ou índice de documentos, e não escreve `sidecar` no diretório.
+
+**Sequência e responsabilidades:**
+
+1. Ao acessar uma pasta, resolver o diretório ativo e **validar a disponibilidade e a autorização de acesso**, independentemente do registro de consentimento (DT-18).
+2. Identificar o diretório de forma suficientemente estável para comparar a referência ao estado persistido. Considerar URI/caminho normalizado e, quando disponível, identidade real de filesystem/portal; o formato definitivo e regras para symlinks, links simbólicos, mudanças de montagem e URI de portal continuam sujeitos à DT-14/DT-15 e validação.
+3. Havendo arquivos `.md` na raiz e **nenhum consentimento válido** para a identidade do diretório, solicitar confirmação **antes** de listar ou abrir como notas. Aceitar persiste a referência no GSettings. Recusar permite escolher outra pasta sem registrar consentimento.
+4. Havendo consentimento válido, reconhecer arquivos `.md` da raiz sem repetir a confirmação, mesmo após reiniciar ou retornar a partir de outra pasta. Não executar varredura recursiva.
+5. Se o registro for inválido, o diretório estiver inacessível/removido/substituído, a identidade não puder ser comprovada ou a autorização do portal tiver sido revogada, **não usar cegamente um caminho antigo**. Solicitar reautorização ou nova confirmação conforme o caso. Não transformar uma confirmação de produto em permissão do portal.
+6. Armazenar dados mínimos de referência a diretórios, sem novos metadados por nota. Validar/deduplicar registros e tratar valores malformados ou configurações antigas sem habilitar reconhecimentos implícitos.
+
+**Pendências técnicas específicas (não novas decisões de produto):** representação da lista/estrutura em GSettings, normalização e equivalência de pastas, identidade sob mudança de caminho/montagem, sincronização com `notes-directory`, tratamento de diretório com `.md` criados após a confirmação e política de limpeza de registros obsoletos. A direção A permanece aprovada; não presumir identidade perfeita do filesystem nem acesso duradouro fornecido pelo portal.
 - Persistência precisa ser testada tanto na execução local quanto dentro do Flatpak.
 
 ## 9. Flatpak, empacotamento e diretórios
@@ -452,6 +468,7 @@ Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificaç
 | Diretório de notas | XDG Documentos em instalações pt-BR/en-US; pasta inexistente, acesso negado, seleção alternativa, restauro após reinício, arquivos `.md` preexistentes |
 | DT-18 — permissões Flatpak | Manifesto restrito a `xdg-documents`, nenhuma permissão `home`/`host`; portal para nova pasta; listagem, leitura, criação, atualização, rename/replace, sincronização quando suportada, lixeira, teste em FUSE, revogação e persistência do acesso após reinício; rejeitar pasta incompatível sem alterar destino anterior |
 | DT-19 — confirmação | Pasta com `.md` preexistente na raiz no primeiro acesso: aceitar, escolher outra pasta, cancelar, pasta vazia, subdiretórios ignorados e não modificação dos arquivos |
+| DT-21 — persistência da confirmação | Confirmar pasta A e B, reiniciar e revisitar sem novo diálogo; pasta nova exige consentimento; valores GSettings inválidos, pasta substituída/inacessível, referência do portal expirada/revogada e identidade ambígua não permitem reconhecimento silencioso |
 | Troca de pasta | Escolha de manter, escolha de migrar, cancelamento, arquivos de mesmo nome, edições pendentes e falhas parciais sem perda silenciosa |
 | DT-20 — cópia/validação | Cópia integral com verificação de bytes/hash; nenhuma ativação com cópia incompleta, origem modificada, destino ocupado ou acesso negado; arquivos de origem intactos durante a transferência |
 | DT-20 — ativação/limpeza | Confirmação adicional para remoção, revalidação antes de cada exclusão, cancelamento da limpeza, falha parcial de remoção e persistência correta do diretório ativo |
@@ -484,13 +501,13 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | RF-23 | feature `export` + portal | integração e teste manual |
 | RF-24 | feature de UI/localização + gettext | checagem de tradução e teste manual |
 | RF-25 | flatpak + CI | build, instalação e smoke test |
-| RF-26 | feature de storage + GSettings + portal (DT-18) | seleção, validação das operações, autorização persistente e controle de permissões no Flatpak |
+| RF-26 | feature de storage + GSettings + portal (DT-18/DT-21) | seleção, validação das operações, autorização persistente e consentimento por pasta no GSettings, testados separadamente |
 | RF-27 | composição da aplicação + GApplication/AdwApplication + serviço de notas | ativações repetidas, buffer preservado e serialização de operações |
 | RNF-01–16 | transversal, conforme área | matriz de testes e revisão |
 
 ## 12. Decisões técnicas pendentes — não aprovadas
 
-**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. **DT-04 — A:** instância única por sessão da aplicação; novas ativações acionam a janela existente; operações internas serializadas, sem presumir proteção global contra editores externos. **DT-05 — B:** sincronizar dados do temporário, publicar via substituição atômica quando suportada e sincronizar o diretório quando disponível, distinguindo publicação de durabilidade verificada e resultados incertos. **DT-06 — B:** antes de trocar de nota ou encerrar normalmente, tentar concluir salvamentos; se falhar ou houver durabilidade incerta, oferecer retry, cancelar/continuar editando ou descartar com confirmação específica. Conflitos seguem DT-02 e encerramento forçado não garante recuperação. **DT-09 — B:** comparar metadados e hash de conteúdo mantidos em memória, verificados sob demanda antes de operações destrutivas; sem monitoramento contínuo obrigatório. **DT-18 — A:** conceder leitura/escrita estática somente a XDG Documentos no Flatpak e solicitar autorização por portal para outras pastas; testar operações reais e continuidade do acesso; jamais ampliar permissões automaticamente. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
+**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. **DT-04 — A:** instância única por sessão da aplicação; novas ativações acionam a janela existente; operações internas serializadas, sem presumir proteção global contra editores externos. **DT-05 — B:** sincronizar dados do temporário, publicar via substituição atômica quando suportada e sincronizar o diretório quando disponível, distinguindo publicação de durabilidade verificada e resultados incertos. **DT-06 — B:** antes de trocar de nota ou encerrar normalmente, tentar concluir salvamentos; se falhar ou houver durabilidade incerta, oferecer retry, cancelar/continuar editando ou descartar com confirmação específica. Conflitos seguem DT-02 e encerramento forçado não garante recuperação. **DT-09 — B:** comparar metadados e hash de conteúdo mantidos em memória, verificados sob demanda antes de operações destrutivas; sem monitoramento contínuo obrigatório. **DT-18 — A:** conceder leitura/escrita estática somente a XDG Documentos no Flatpak e solicitar autorização por portal para outras pastas; testar operações reais e continuidade do acesso; jamais ampliar permissões automaticamente. **DT-21 — A:** persistir confirmações de reconhecimento de Markdown **por diretório** em GSettings; revisitas válidas não exigem confirmação, sem índice de notas ou concessão de acesso do sistema. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
 
 | Prioridade | ID | Decisão a tomar | Alternativas a investigar |
 | --- | --- | --- | --- |
@@ -504,15 +521,14 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | Média | DT-14 | Política de arquivos inesperados e symlinks | ignorar e notificar / validar |
 | Média | DT-15 | Valores finais das chaves GSettings e migração | defaults e versionamento |
 | Média | DT-16 | Mecanismo de execução de I/O e retorno ao contexto GTK | GLib assíncrono / worker controlado |
-| Média | DT-21 | Como lembrar a confirmação inicial da DT-19 por pasta | GSettings com referência à pasta / confirmação por sessão; sem criar índice de notas |
 
-**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 estão aprovadas. A primeira rodada de decisões críticas de integridade e as DT-05/DT-06 foram aprovadas; **DT-09 e DT-18 também foram aprovadas; próxima decisão: DT-21 — persistência de confirmação por diretório**, seguida de DT-07 — exportação e DT-08 — versão do runtime. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
+**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 estão aprovadas. A primeira rodada de decisões críticas de integridade e as DT-05/DT-06 foram aprovadas; **DT-09, DT-18 e DT-21 também foram aprovadas; próxima decisão: DT-07 — exportação, colisões e falhas parciais**, seguida de DT-08 — versão do runtime. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
 
 ## 13. Critérios de conclusão da PREP-02
 
 Para declarar a PREP-02 aprovada, precisamos:
 1. Verificar cobertura de RF-01–RF-27 e RNF-01–RNF-16.
-2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02, DT-03, DT-04, DT-05, DT-06, DT-09 e DT-18 aprovadas; verificar limites de instância única, salvamento reforçado, fechamento seguro, fingerprints e permissões Flatpak, refinando as demais decisões conforme risco antes do backlog.
+2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02, DT-03, DT-04, DT-05, DT-06, DT-09, DT-18 e DT-21 aprovadas; verificar limites de instância única, salvamento reforçado, fechamento seguro, fingerprints, permissões Flatpak e confirmação persistida por pasta, refinando as demais decisões conforme risco antes do backlog.
 3. Estabelecer contratos operacionais de salvamento, renomeação, exclusão, troca de pasta e exportação suficientemente testáveis.
 4. Definir a versão de runtime/SDK e principais dependências durante o planejamento, antes da implementação que delas dependa; considerar a validação de permissões e publicação atômica em pastas selecionadas.
 5. Definir limites verificáveis de acessibilidade e falhas.
