@@ -13,7 +13,7 @@ Este documento consolida o escopo de produto do **Oak Note v0.1.0** a partir das
 
 As POCs 00–04 serviram de investigação técnica, e o responsável pelo projeto confirmou a validação manual no Debian/GNOME/Wayland e a instalação Flatpak. Os relatórios experimentais podem registrar estados anteriores dessa validação. Essa confirmação não constitui uma exigência de reutilizar integralmente o código da POC.
 
-**Precedência:** em caso de divergência, prevalecem as escolhas explícitas mais recentes do briefing e das ADRs. Assuntos não decididos estão identificados em [Questões abertas](#12-questões-abertas-para-refinamento), sem serem tratados como requisitos aprovados.
+**Precedência:** em caso de divergência, prevalecem as escolhas explícitas mais recentes do briefing e das ADRs, inclusive os refinamentos posteriores. A **DT-01 (alternativa B)** foi aprovada em 2026-11-16: quando houver nome duplicado, a aplicação sugere um nome alternativo e permite ao usuário confirmar ou editar. Foram também aprovadas a **organização feature-based**, a aplicação pragmática de arquitetura hexagonal e o **diretório XDG Documentos como local inicial configurável**. Questões não decididas estão em [Questões abertas](#12-questões-abertas-para-refinamento).
 
 ## 2. Visão do produto
 
@@ -48,6 +48,7 @@ Não foram estabelecidas métricas numéricas de adoção, desempenho ou retenç
 | Organização | Várias notas em **uma única janela** | Sem múltiplas janelas de notas |
 | Edição | Editor de **Markdown textual**, sem preview obrigatório | Sem editor rico/WYSIWYG |
 | Arquivos | Uma nota por `.md`, nome físico derivado do título | Sem SQLite ou índice auxiliar |
+| Diretório de notas | Pasta XDG **Documentos** do usuário por padrão, com seleção de outro diretório nas preferências | Sem caminho fixo de usuário e sem obrigação de guardar em área privada do Flatpak |
 | Gerenciamento | Criar, selecionar, renomear, excluir com confirmação | Sem pastas, tags ou favoritos |
 | Busca | Pesquisa rápida **por título** | Sem busca de conteúdo |
 | Ordenação | Mais recentemente modificada primeiro | Sem ordenação configurável |
@@ -76,6 +77,8 @@ Uma **nota** possui:
 
 O caminho da nota **não é uma identidade imutável**: a renomeação altera o nome físico. O MVP deve lidar com isso sem perder a nota aberta ou sobrescrever outra nota.
 
+**Diretório de armazenamento:** por padrão, as notas residem diretamente no diretório especial **Documentos** configurado para o usuário (XDG user directory; por exemplo, `/home/<USER>/Documentos` em ambiente pt-BR). O usuário pode selecionar outro diretório. Não se presume a criação automática de uma subpasta `Oak Note`. A política de migração de notas existentes ao trocar o diretório **ainda está aberta**; não mover ou apagar arquivos implicitamente.
+
 ### 4.2. Integridade e concorrência
 
 **ADR-03:** o salvamento automático usa debounce, arquivo temporário no mesmo diretório, substituição atômica quando suportada, escrita serializada por nota e tratamento explícito de falhas. Revisões antigas não podem substituir conteúdo mais recente.
@@ -87,7 +90,7 @@ A substituição atômica não significa garantia absoluta contra perda de dados
 ### 4.3. Preferências e estados
 
 **ADR-04:** utilizar um único esquema GSettings, com chaves separadas logicamente para:
-- Preferências: tema, transparência e visibilidade da barra lateral;
+- Preferências: tema, transparência, visibilidade da barra lateral e diretório de armazenamento selecionado;
 - Estado operacional: dimensões, maximização e última nota selecionada.
 
 O conteúdo das notas não fica no GSettings. A posição absoluta da janela não será persistida nem controlada no Wayland.
@@ -105,10 +108,10 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 ### 5.1. Notas, edição e pesquisa
 
 **RF-01 — Criar nota.** Permitir criar uma nova nota a partir da janela principal.  
-**Aceite:** a nota criada aparece na lista, torna-se selecionável/editável e é persistida como arquivo `.md` com nome válido; se o nome proposto conflitar, nenhuma nota existente é sobrescrita.
+**Aceite:** a nota criada aparece na lista, torna-se selecionável/editável e é persistida como arquivo `.md` no diretório ativo com nome válido; se o título conflitar, o aplicativo **sugere nome disponível** (por exemplo, `Ideias (2)`), permitindo aceitar ou escolher outro; nenhuma nota existente é sobrescrita.
 
 **RF-02 — Listar notas.** Mostrar as notas gerenciadas pelo aplicativo.  
-**Aceite:** arquivos `.md` válidos do diretório gerenciado são apresentados com títulos derivados de seus nomes; arquivos desconhecidos não são alterados apenas pela listagem.
+**Aceite:** arquivos `.md` válidos do diretório de notas ativo (Documentos por padrão, ou outro selecionado) são apresentados com títulos derivados de seus nomes; arquivos desconhecidos não são alterados apenas pela listagem. A política de subdiretórios e arquivos `.md` preexistentes será refinada.
 
 **RF-03 — Selecionar nota.** Alternar entre notas da lista.  
 **Aceite:** selecionar uma nota carrega seu conteúdo no editor; alterações pendentes da nota anterior são tratadas conforme RF-10 e RF-12, sem descarte silencioso.
@@ -117,7 +120,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** caracteres Unicode, quebras de linha e sintaxe Markdown são preservados no conteúdo salvo; não há exigência de renderização nem editor visual de formatação.
 
 **RF-05 — Renomear nota.** Alterar o título da nota e seu nome físico, segundo regras de nomes.  
-**Aceite:** após renomeação bem-sucedida a lista e a seleção refletem o novo nome; colisões, nomes inválidos e falhas não sobrescrevem outros arquivos nem eliminam o conteúdo anterior.
+**Aceite:** após renomeação bem-sucedida a lista e a seleção refletem o novo nome; havendo colisão, é sugerido um nome disponível, editável pelo usuário; nomes inválidos e falhas não sobrescrevem outros arquivos nem eliminam o conteúdo anterior.
 
 **RF-06 — Excluir nota.** Oferecer exclusão mediante confirmação.  
 **Aceite:** cancelar mantém a nota intacta; confirmar remove a nota escolhida da lista e aplica o tratamento de arquivos definido na especificação técnica; nenhuma nota diferente é excluída.
@@ -171,8 +174,8 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **RF-21 — Acesso rápido via GNOME.** Permitir que o usuário configure externamente um atalho para abrir a aplicação.  
 **Aceite:** o aplicativo pode ser iniciado normalmente pelo comando de instalação e a documentação explica a configuração do atalho no GNOME. Não exige registrar um hotkey global.
 
-**RF-22 — Preferências.** Disponibilizar janela nativa com configurações de tema e transparência, integrada ao estado da aplicação.  
-**Aceite:** alterações de preferência refletem-se na interface e persistem via GSettings; estado operacional não precisa ter controles editáveis.
+**RF-22 — Preferências.** Disponibilizar janela nativa com configurações de tema, transparência e diretório de notas, integrada ao estado da aplicação.  
+**Aceite:** alterações de preferência refletem-se na interface e persistem via GSettings; o diretório atual é identificado de modo compreensível e pode ser alterado por seletor de pastas; estado operacional não precisa ter controles editáveis.
 
 ### 5.4. Dados, idioma e distribuição
 
@@ -185,6 +188,9 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **RF-25 — Distribuição.** Oferecer instalação por Flatpak e instruções para compilação pelo código-fonte.  
 **Aceite:** artefato Flatpak da versão `0.1.0` pode ser instalado, aberto e encerrado no ambiente de referência; Application ID é `io.github.rafaelcarvalho89.oaknote`; publicação exige aprovação e inclui notas de versão.
 
+**RF-26 — Configurar diretório das notas.** Por padrão, utilizar a pasta XDG **Documentos** do usuário e permitir selecionar outro diretório para o conjunto de notas gerenciado.  
+**Aceite:** em instalação inicial, o aplicativo reconhece a pasta Documentos configurada pelo sistema; exibe o diretório ativo; permite selecionar pasta alternativa e persiste a seleção; restaura o diretório escolhido ao reiniciar; informa indisponibilidade e ausência de permissão sem redirecionar ou perder notas silenciosamente. O comportamento das notas já existentes quando a pasta é alterada será definido antes do desenvolvimento.
+
 ## 6. Requisitos não funcionais (RNF)
 
 | ID | Requisito | Evidência/critério de verificação |
@@ -192,18 +198,18 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 | RNF-01 | Execução nativa no Debian/GNOME/Wayland | Testes manuais no ambiente de referência, incluindo integração com o GNOME |
 | RNF-02 | Operação offline | Criar, editar, buscar e salvar notas sem conexão; nenhuma conta exigida |
 | RNF-03 | Privacidade | Sem telemetria, sincronização ou envio de conteúdo das notas |
-| RNF-04 | Portabilidade | Arquivos Markdown individuais legíveis em editor externo, sem front matter obrigatório |
+| RNF-04 | Portabilidade | Arquivos Markdown individuais no diretório selecionado, legíveis em editor externo, sem front matter obrigatório |
 | RNF-05 | Integridade | Escrita temporária, publicação segura, concorrência controlada, conflitos e falhas testados |
 | RNF-06 | Responsividade | Operações de I/O não congelam o loop principal GTK; verificar manualmente e por testes aplicáveis |
 | RNF-07 | Acessibilidade de teclado | Funções essenciais sem mouse, foco visível e navegação consistente |
 | RNF-08 | Tecnologias assistivas | Verificação manual básica com Orca de controles e estados |
 | RNF-09 | Contraste e legibilidade | Testar texto, seleção, cursor e controles em Claro/Escuro e níveis suportados de transparência |
-| RNF-10 | Mínimo privilégio | Flatpak não requer acesso amplo à home, rede nem D-Bus irrestrito sem justificativa |
+| RNF-10 | Mínimo privilégio | Flatpak oferece acesso necessário à pasta XDG Documentos e, para outras pastas, acesso autorizado pelo usuário/portal quando viável; não requer acesso amplo à home, rede nem D-Bus irrestrito sem justificativa |
 | RNF-11 | Observabilidade local | Logs estruturados de falha e diagnóstico sem conteúdo das notas, credenciais ou dados sensíveis |
 | RNF-12 | Testabilidade | Testes unitários das regras e integração do filesystem, inclusive falhas e conflitos |
 | RNF-13 | Integração contínua | GitHub Actions executa Fmt, Clippy e testes para alterações propostas |
 | RNF-14 | Distribuição controlada | Versão SemVer, `CHANGELOG.md`, verificação do Flatpak e release aprovada manualmente |
-| RNF-15 | Arquitetura proporcional | Um crate Rust, módulos delimitados e traits seletivas, sem dependências GTK no domínio |
+| RNF-15 | Arquitetura proporcional | Organização **feature-based**; um crate Rust; arquitetura modular com limites hexagonais seletivos; aplicar SOLID, YAGNI e DRY de forma contextual, sem interfaces ou camadas artificiais |
 | RNF-16 | Preferências persistentes | Um esquema GSettings versionado, distribuído corretamente e testado no Flatpak |
 
 Os RNFs 05 e 06 não estabelecem, nesta etapa, garantias absolutas de durabilidade ou metas numéricas de latência; essas garantias devem ser refinadas e testadas na PREP-02.
@@ -214,10 +220,10 @@ Os RNFs 05 e 06 não estabelecem, nesta etapa, garantias absolutas de durabilida
 1. Usuário abre o Oak Note.
 2. Cria uma nota e atribui um título válido.
 3. Digita texto Markdown.
-4. Após intervalo sem edição, o aplicativo salva automaticamente.
+4. Após intervalo sem edição, o aplicativo salva automaticamente **na pasta ativa** (Documentos por padrão).
 5. A nota aparece na lista e pode ser reaberta após reiniciar.
 
-**Falhas:** colisão de nome ou erro de escrita deve ser comunicado, sem sobrescrever outro arquivo.
+**Falhas:** colisão de nome gera sugestão editável; erro de escrita deve ser comunicado, sem sobrescrever outro arquivo.
 
 ### UC-02 — Consultar e editar nota existente
 1. Usuário pesquisa por título ou escolhe a nota na lista.
@@ -256,6 +262,14 @@ Os RNFs 05 e 06 não estabelecem, nesta etapa, garantias absolutas de durabilida
 3. Aplicação gera cópias Markdown ou informa conflitos/falhas.
 4. Arquivos originais permanecem intactos.
 
+### UC-07 — Configurar pasta de notas
+1. Usuário acessa Preferências e consulta a pasta de armazenamento ativa.
+2. Seleciona outro diretório usando seletor de pastas do sistema.
+3. O aplicativo valida disponibilidade e permissão de leitura/gravação e persiste a preferência.
+4. Nas próximas execuções, o aplicativo utiliza a pasta escolhida, sem escolher silenciosamente outra.
+
+**Pendente:** definir se, ao trocar de pasta, as notas existentes serão transferidas, permanecerão na origem ou haverá uma escolha explícita; nenhuma dessas alternativas está implicitamente aprovada.
+
 ## 8. Estados da experiência
 
 Os seguintes estados precisam ser representados de maneira legível e acessível:
@@ -275,7 +289,7 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-01 — Ciclo de vida:** criar uma nota, editar e fechar; reabrir e encontrar conteúdo persistido, sem ação manual de salvar.
 
-**CA-02 — Proteção contra colisões:** criar ou renomear para nome ocupado não altera o conteúdo da nota existente.
+**CA-02 — Proteção contra colisões:** criar ou renomear para nome ocupado oferece sugestão editável e não altera o conteúdo da nota existente.
 
 **CA-03 — Falha de gravação:** simular erro de I/O e comprovar que o aplicativo não exibe estado “salvo”, preserva o texto em memória e permite nova tentativa.
 
@@ -296,6 +310,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 **CA-11 — Localização e acessibilidade:** percorrer funções essenciais em pt-BR/en-US com teclado, foco visível e teste básico com Orca.
 
 **CA-12 — Exportação:** exportar todas as notas, verificar integridade das cópias e não alterar originais, inclusive em casos de falha/cancelamento.
+
+**CA-13 — Pasta de notas:** em instalação inicial utilizar a pasta XDG Documentos disponível; selecionar outra pasta, reiniciar e verificar persistência, listagem e escrita no novo destino; simular acesso negado e remoção do diretório sem perda silenciosa.
 
 Esses cenários devem ser transformados em testes e checklists detalhados nas próximas etapas.
 
@@ -340,7 +356,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | ID | Questão | Impacto | Etapa sugerida |
 | --- | --- | --- | --- |
 | QA-01 | Regras de normalização de título, nomes reservados, espaços, extensão e caracteres Unicode | Integridade e portabilidade | PREP-02 |
-| QA-02 | Política de desambiguação de nomes duplicados e novo título padrão | Criação e renomeação | PREP-02 |
+| QA-02 | Detalhes de formato da sugestão de nome alternativo e título inicial (a política de **sugestão editável** já está aprovada na DT-01) | Criação e renomeação | PREP-02 |
 | QA-03 | Mecanismo de referência à nota durante renomeação, sem ID persistente | Seleção e concorrência | PREP-02 |
 | QA-04 | Debounce exato, sincronização/durabilidade, escrita e retry em caso de falha | Proteção dos dados | PREP-02 |
 | QA-05 | Resolução de conflitos com modificações/remoções externas, inclusive fechamento | Proteção dos dados | PREP-02 |
@@ -353,6 +369,8 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-12 | Detalhes de GSettings, esquema de versão, valores padrão e fallback de idioma | Persistência | PREP-02 |
 | QA-13 | Versão final suportada do SDK/runtime Flatpak, permissões e metadados definitivos | Distribuição | PREP-02 |
 | QA-14 | Mapeamento final dos atalhos internos e orientação do atalho no GNOME | Acessibilidade | PREP-02 |
+| QA-15 | Ao mudar o diretório de notas, mover arquivos existentes, manter na origem ou oferecer escolha explícita | Integridade e experiência | PREP-02 |
+| QA-16 | Permissões do Flatpak/portal para pasta alternativa, localização XDG Documentos indisponível e tratamento de arquivos Markdown preexistentes | Acesso a dados | PREP-02 |
 
 ## 13. Rastreabilidade e diretrizes aprovadas
 
@@ -362,9 +380,10 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | ADR-02 | Markdown puro, metadados de filesystem, sem ID interno persistente |
 | ADR-03 | Autosave com debounce, temporário, substituição segura, concorrência e conflitos |
 | ADR-04 | GSettings em esquema único para preferências e estado |
-| ADR-05 | Monólito modular de um crate com traits seletivas |
+| ADR-05 | Monólito modular de um crate com traits seletivas; organização **feature-based** do projeto e hexagonal apenas no essencial |
 | ADR-06 | `io.github.rafaelcarvalho89.oaknote` e Flatpak com runtime controlado |
 | ADR-07 | Transparência de todos os fundos da janela principal, conteúdo opaco |
+| DT-01 | Nome duplicado: sugerir nome alternativo e permitir aceitar/editar, sem sobrescrever |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -372,6 +391,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que a lista de RFs/RNFs, os critérios de aceitação e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 26 RFs, 16 RNFs, 13 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
