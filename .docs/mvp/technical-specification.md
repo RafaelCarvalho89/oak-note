@@ -8,7 +8,7 @@
 
 ## 1. Objetivo, contexto e situação do repositório
 
-Traduzir os requisitos RF-01–RF-26 e RNF-01–RNF-16 da PREP-01 em desenho técnico verificável, mantendo as sete ADRs aprovadas como restrições. Não antecipar código de implementação nem converter propostas ainda pendentes em decisões aprovadas.
+Traduzir os requisitos RF-01–RF-27 e RNF-01–RNF-16 da PREP-01 em desenho técnico verificável, mantendo as sete ADRs aprovadas como restrições. Não antecipar código de implementação nem converter propostas ainda pendentes em decisões aprovadas.
 
 Em 2026-11-16, a `main` do repositório `RafaelCarvalho89/oak-note` foi verificada contendo apenas `.gitignore`, `LICENSE` e `README.md`. A POC havia sido retirada da branch principal pelo mantenedor. A documentação nova não deve copiar arquivos experimentais da branch antiga. A base de implementação do MVP deverá ser estabelecida somente em M1.
 
@@ -24,7 +24,7 @@ Em 2026-11-16, a `main` do repositório `RafaelCarvalho89/oak-note` foi verifica
 | 06 | Application ID definitivo `io.github.rafaelcarvalho89.oaknote`, Flatpak com runtime GNOME versionado e atualizações controladas. |
 | 07 | Transparência em **todos os fundos da janela principal**, incluindo cabeçalho, editor e barra lateral; textos e controles opacos. |
 
-**Baseline adicional:** Debian/GNOME/Wayland; Rust + GTK4 + libadwaita; POC validada manualmente pelo responsável; sobreposição exclusivamente manual pelo GNOME; notas offline em **Documentos por padrão** com pasta configurável; localização pt-BR/en-US; GitHub Releases para Flatpak. **DT-01 aprovada:** sugerir nome alternativo editável em colisões. **Diretriz transversal:** os projetos de produção seguem organização feature-based; aplicar princípios hexagonais, SOLID, YAGNI e DRY somente de forma útil e compatível com o contexto.
+**Baseline adicional:** Debian/GNOME/Wayland; Rust + GTK4 + libadwaita; POC validada manualmente pelo responsável; sobreposição exclusivamente manual pelo GNOME; notas offline em **Documentos por padrão** com pasta configurável; localização pt-BR/en-US; GitHub Releases para Flatpak; **DT-04 aprovada: instância única por sessão do aplicativo, com reativação da janela existente**. **DT-01 aprovada:** sugerir nome alternativo editável em colisões. **Diretriz transversal:** os projetos de produção seguem organização feature-based; aplicar princípios hexagonais, SOLID, YAGNI e DRY somente de forma útil e compatível com o contexto.
 
 ## 3. Organização feature-based e arquitetura modular
 
@@ -183,7 +183,7 @@ O usuário precisa distinguir **pendente**, **salvando**, **salvo**, **falha** e
 
 ### 5.3. Garantias e limites
 
-- Apenas uma operação de escrita de uma nota pode publicar por vez; operações de renomeação e exclusão da mesma nota também devem participar da coordenação.
+- **DT-04:** uma instância ativa por sessão não substitui coordenação interna: somente uma operação mutável por nota/recurso deve publicar por vez, incluindo escrita, renomeação, envio à lixeira, troca de pasta e migração quando compartilharem arquivos; revisões e destinos esperados são revalidados antes de confirmar resultados.
 - Escrita atrasada nunca marca como salva uma revisão mais nova.
 - Falhas preservam o buffer e deixam a revisão não salva; **não há garantia de recuperar memória após crash** sem journal/snapshot, que estão fora do MVP.
 - Evitar sobrescrever outro arquivo em caso de colisão de nome.
@@ -210,7 +210,7 @@ A aplicação tenta concluir gravações pendentes na troca e no encerramento. E
 
 **Garantias:** a detecção de conflito e a criação de nova nota devem verificar o estado do filesystem na operação efetiva; uma checagem antecipada não elimina riscos de TOCTOU, abordados em DT-04/DT-09. A escolha de recarregar não significa mesclagem de textos; não há merge automático no MVP. O comando de salvar como nova nota **não deve salvar sobre o caminho da versão externa**. A interface não pode apresentar `Clean/Salvo` antes da persistência confirmada. Troca de nota e encerramento respeitam RF-12/DT-06 quando existir buffer local conflitado.
 
-**Detalhes ainda abertos:** forma de identificar renomeação versus remoção, fingerprint efetivo, comportamento de múltiplas instâncias, controles de saída em estado `Conflict` e erro durante a opção de salvar como nova nota. Esses tópicos refinam a DT-02 sem alterar as três ações aprovadas.
+**Detalhes ainda abertos:** forma de identificar renomeação versus remoção, fingerprint efetivo, concorrência de outros aplicativos ou sessões, controles de saída em estado `Conflict` e erro durante a opção de salvar como nova nota. A DT-04 evita múltiplas instâncias independentes dentro da mesma sessão do aplicativo, mas não elimina os conflitos externos definidos na DT-02.
 
 ## 6. Casos de uso e fluxo de operações
 
@@ -296,6 +296,18 @@ O contexto GTK executa manipulação de widgets; I/O de arquivos que possa bloqu
 - Atalho global externo: usuário configura no GNOME; o aplicativo só oferece instalação/comando de inicialização.
 - Sempre no topo: recurso **manual** do menu/gerenciador de janelas GNOME, sem API de automação nem dependência de extensão no MVP.
 
+### 7.4.1. Instância única por sessão — DT-04 aprovada (alternativa A)
+
+- **Invariante:** dentro de uma mesma sessão/identidade de execução do Oak Note, existe somente uma instância ativa que controla o editor e a janela principal. Uma nova tentativa de abertura **encaminha uma solicitação de ativação à instância existente**, em vez de inicializar um segundo editor independente.
+- **Mecanismo candidato:** usar o comportamento de instância única e ativação de `GApplication`/`AdwApplication` com o Application ID definitivo `io.github.rafaelcarvalho89.oaknote` e o barramento de sessão. A escolha é diretriz técnica a verificar na configuração de desenvolvimento e Flatpak, não garantia universal de singleton entre todos os contextos de execução.
+- **Estado preservado:** ao reativar, apresentar a janela principal existente e manter seleção, buffer, revisões pendentes, diálogo ou conflito em curso. Não reinicializar repositório, cancelar autosave nem abrir segunda janela.
+- **Operações coordenadas:** o serviço de notas coordena serialização e ordem de conclusão para gravação, renomeação, lixeira e migração na mesma nota ou diretório envolvido. A identidade operacional de arquivo pode mudar ao renomear; não depender apenas da string de caminho para garantir integridade.
+- **Limites:** sessões distintas, ambientes de barramento diferentes, instalações Flatpak e nativa com escopos distintos, editores externos e operações diretas no filesystem podem coexistir. **DT-02 continua obrigatória**; singleton de aplicação não é bloqueio de arquivos distribuído, nem prova de ausência de TOCTOU.
+- **Falha/encerramento:** garantir que após encerrar a instância anterior a aplicação possa iniciar normalmente, sem bloqueios próprios órfãos. Falha ao comunicar a instância primária precisa de estado/erro claro; não criar editor independente como fallback silencioso.
+- **Sem excesso de engenharia:** preferir mecanismos nativos da plataforma; não criar daemon, serviço de lock ou IPC customizado apenas para esse requisito, a menos que testes mostrem necessidade real.
+
+**Validação na PREP-02/M1:** duas ativações na mesma sessão, inclusive launcher/Flatpak; restauração da janela; uma única janela e um único buffer; ativação durante autosave ou diálogo; encerramento e reinício após falha; acessos por editores externos continuam resultando em detecção de conflito.
+
 ### 7.5. Localização e acessibilidade
 
 Usar gettext para textos próprios da interface em pt-BR e inglês, com fallback documentado. Preservar notas sem tradução. Labels e papéis acessíveis, estados de salvamento anunciáveis, foco visível; testes básicos com Orca e teclado.
@@ -358,6 +370,7 @@ Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificaç
 | Salvamento | debounce, reordenação de resultados, revisão nova durante I/O, retry |
 | Filesystem | escrita temporária, substituição, falha simulada, arquivo removido, acesso negado |
 | DT-03 — lixeira | Confirmação/cancelamento, sucesso, lixeira não suportada, acesso negado, pasta via portal, item alterado externamente, nenhuma exclusão permanente como fallback |
+| DT-04 — instância e serialização | Lançamento repetido na mesma sessão; reativação da janela mantendo buffer, conflitos e autosave; concorrência de gravação/renomeação/lixeira/migração; recuperação após encerramento; edição externa ainda detectada |
 | Conflito | alteração externa, arquivo removido/renomeado, autosave bloqueado, recarregar com confirmação, salvar como nova nota respeitando DT-01, cancelar e preservar buffer; falha de I/O durante resolução |
 | Busca/ordem | correspondência por título, mudança de mtime e empates |
 | Preferências | defaults, leitura/atualização, restauração, pasta de notas e entrada inválida |
@@ -396,16 +409,16 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | RF-24 | feature de UI/localização + gettext | checagem de tradução e teste manual |
 | RF-25 | flatpak + CI | build, instalação e smoke test |
 | RF-26 | feature de storage + GSettings + portal | seleção, persistência e permissões no Flatpak |
+| RF-27 | composição da aplicação + GApplication/AdwApplication + serviço de notas | ativações repetidas, buffer preservado e serialização de operações |
 | RNF-01–16 | transversal, conforme área | matriz de testes e revisão |
 
 ## 12. Decisões técnicas pendentes — não aprovadas
 
-**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
+**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. **DT-04 — A:** instância única por sessão da aplicação; novas ativações acionam a janela existente; operações internas serializadas, sem presumir proteção global contra editores externos. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
 
 | Prioridade | ID | Decisão a tomar | Alternativas a investigar |
 | --- | --- | --- | --- |
 
-| Crítica | DT-04 | Proteção contra concorrência de processos e operações filesystem | instância única / coordenação operacional / bloqueio e detecção |
 | Alta | DT-05 | Política exata de debounce, flushing, sincronização e confirmação de salvamento | limites e operações suportadas pelo SO |
 | Alta | DT-06 | Comportamento de saída/troca com alteração não salva | impedir fluxo / preservar temporário ou cópia / confirmação explícita |
 | Alta | DT-07 | Política de exportação com conflitos e falhas parciais | abortar / continuar e relatar / manter arquivos anteriores |
@@ -421,13 +434,13 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | Alta | DT-18 | Permissões e operações na pasta padrão e alternativa com Flatpak | `xdg-documents` + portal; verificar persistência e escrita atômica em FUSE |
 | Média | DT-21 | Como lembrar a confirmação inicial da DT-19 por pasta | GSettings com referência à pasta / confirmação por sessão; sem criar índice de notas |
 
-**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02 e DT-03 estão aprovadas. Prosseguir para **DT-04 — concorrência entre processos e instâncias**, uma decisão por vez. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
+**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 estão aprovadas. A primeira rodada de decisões críticas de integridade foi concluída; **próxima proposta de refinamento: DT-05 — política de salvamento, flush e sincronização**, seguida de DT-06 — saída/troca com alterações pendentes, e DT-18 — permissões de armazenamento Flatpak. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
 
 ## 13. Critérios de conclusão da PREP-02
 
 Para declarar a PREP-02 aprovada, precisamos:
-1. Verificar cobertura de RF-01–RF-26 e RNF-01–RNF-16.
-2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02 e DT-03 aprovadas e resolver DT-04, sem reabrir as ADRs desnecessariamente.
+1. Verificar cobertura de RF-01–RF-27 e RNF-01–RNF-16.
+2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 aprovadas, validando os limites de instância única e mantendo conflitos externos protegidos; as demais decisões pendentes devem ser refinadas conforme risco antes do backlog.
 3. Estabelecer contratos operacionais de salvamento, renomeação, exclusão, troca de pasta e exportação suficientemente testáveis.
 4. Definir a versão de runtime/SDK e principais dependências durante o planejamento, antes da implementação que delas dependa; considerar a validação de permissões e publicação atômica em pastas selecionadas.
 5. Definir limites verificáveis de acessibilidade e falhas.
