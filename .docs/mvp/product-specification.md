@@ -110,7 +110,9 @@ O conteúdo das notas não fica no GSettings. A posição absoluta da janela nã
 
 ### 4.4. Estilo e sobreposição
 
-**ADR-07:** todos os **fundos da janela principal** — cabeçalho, editor e barra lateral — devem acompanhar a transparência configurada; os textos, ícones e controles permanecem opacos. Popovers, diálogos e janela de preferências não estão automaticamente incluídos nessa regra.
+**ADR-07:** todos os **fundos da janela principal** — cabeçalho, editor e barra lateral — devem acompanhar a transparência configurada; os textos, ícones e controles permanecem opacos.
+
+**DT-10 aprovada (alternativa A):** disponibilizar transparência ajustável inicialmente de **0–70%** exclusivamente nos fundos da janela principal, incluindo cabeçalho, editor e barra lateral. **0% equivale a fundo opaco.** Textos, ícones, cursor, seleção, indicadores e controles devem permanecer visualmente legíveis, sem reduzir a opacidade da janela inteira nem criar click-through. **Diálogos, popovers, menus e janela de preferências mantêm fundos opacos**. Verificar em temas Claro/Escuro e com diferentes conteúdos atrás da janela, inclusive contraste, seleção e foco; **reduzir o limite máximo se os testes demonstrarem risco de ilegibilidade**. A faixa inicial está aprovada, mas sua adequação não foi validada na implementação.
 
 O GTK não promete manter a janela sobre outras por API própria. A sobreposição é uma ação manual do usuário pelo ambiente GNOME e está sujeita ao comportamento do compositor.
 
@@ -173,7 +175,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** a escolha aplica aparência correspondente sem reiniciar e é restaurada; Sistema acompanha a preferência disponível do GNOME.
 
 **RF-17 — Transparência seletiva.** Disponibilizar controle de transparência global dos fundos da janela principal.  
-**Aceite:** cabeçalho, editor e barra lateral têm fundos ajustáveis; textos, ícones e controles mantêm opacidade; o valor é restaurado; não há clique através da janela. A faixa de 0–70% é referência a confirmar com testes de legibilidade.
+**Aceite:** a transparência dos fundos do cabeçalho, editor e barra lateral usa a faixa inicial **0–70%**, em que 0% significa opaco; textos, ícones, cursor e controles mantêm opacidade, o valor é persistido/restaurado, e não há click-through. **Diálogos, popovers, menus e preferências permanecem com fundos opacos.** Validar contraste, seleção, cursor e foco sob temas Claro/Escuro e fundos externos variados, incluindo 70%; reduzir o limite máximo se os testes indicarem legibilidade insuficiente, sem declarar o valor de 70% validado previamente (DT-10).
 
 **RF-18 — Sobreposição manual.** Permitir uso em conjunto com o recurso de janela do GNOME.  
 **Aceite:** o produto não bloqueia o procedimento manual validado para manter a janela acima de outras janelas normais e documenta como ativá-lo/desativá-lo. Não promete ativação pelo próprio Oak Note.
@@ -219,7 +221,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 | RNF-06 | Responsividade | Operações de I/O não congelam o loop principal GTK; verificar manualmente e por testes aplicáveis |
 | RNF-07 | Acessibilidade de teclado | Funções essenciais sem mouse, foco visível e navegação consistente |
 | RNF-08 | Tecnologias assistivas | Verificação manual básica com Orca de controles e estados |
-| RNF-09 | Contraste e legibilidade | Testar texto, seleção, cursor e controles em Claro/Escuro e níveis suportados de transparência |
+| RNF-09 | Contraste e legibilidade | DT-10: testar fundos da janela com transparência inicial de 0–70% e superfícies auxiliares opacas; medir/avaliar legibilidade de texto, seleção, cursor, indicadores e foco nos temas Claro/Escuro sobre diferentes fundos de aplicativos; reduzir máximo se necessário |
 | RNF-10 | Mínimo privilégio | Flatpak com `--filesystem=xdg-documents` (leitura/escrita dentro de Documentos), demais pastas somente via seleção e autorização explícita pelo portal; não solicitar `home`/`host`, rede ou D-Bus irrestrito como fallback; operações e persistência exigem validação prática (DT-18) |
 | RNF-11 | Observabilidade local | Logs estruturados de falha e diagnóstico sem conteúdo das notas, credenciais ou dados sensíveis |
 | RNF-12 | Testabilidade | Testes unitários das regras e integração do filesystem, inclusive falhas e conflitos |
@@ -347,7 +349,7 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-07 — Navegação:** criar várias notas, pesquisar pelo título, ordenar por modificação e recolher/expandir a barra lateral sem perda de edição.
 
-**CA-08 — Aparência:** alternar Sistema/Claro/Escuro, variar transparência e reiniciar; validar persistência e opacidade do conteúdo, inclusive no cabeçalho.
+**CA-08 — Aparência:** alternar Sistema/Claro/Escuro, variar transparência inicial de 0–70% e reiniciar; confirmar persistência, fundo opaco em 0%, transparência seletiva no cabeçalho, editor e lateral, opacidade dos textos e controles, e ausência de click-through.
 
 **CA-09 — Integração GNOME:** ativar e desativar manualmente sobreposição enquanto outro aplicativo possui foco; validar operação sem click-through.
 
@@ -368,6 +370,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 **CA-23 — Exportação com resultado parcial (DT-07):** preparar três notas e destino com um nome ocupado; comprovar que o existente não é alterado e o demais são exportados. Simular falha de escrita individual e cancelamento durante a cópia: notas exportadas com sucesso continuam disponíveis, arquivos incompletos não contam como sucesso, e o relatório separa exportados, ignorados, erros e não processados. Testar destino igual à origem e edições pendentes, preservando arquivos e evitando cópias destrutivas ou obsoletas.
 
 **CA-24 — Compatibilidade da toolchain (DT-08):** confirmar que runtime/SDK Flatpak GNOME 51 e extensão Rust stable compatível permitem build, instalação e execução no ambiente-alvo; registrar em CI a versão efetiva de Rust/Cargo, SDK/extensão e dependências relevantes. Verificar que atualização do canal stable dispara validação e que falhas de compatibilidade bloqueiam release; não afirmar que dois builds em datas diferentes serão idênticos.
+
+**CA-25 — Transparência e legibilidade (DT-10):** testar 0%, valores intermediários e 70% nos temas Claro/Escuro, sobre fundos externos claros, escuros e visuais complexos; conferir que só fundos do cabeçalho, editor e lateral são translúcidos e que diálogos, menus, popovers e preferências mantêm fundos opacos. Validar legibilidade de texto, foco, cursor, seleção e ícones; sem click-through. Caso 70% comprometa acessibilidade, reduzir o limite máximo documentando o resultado do teste, sem prometer contraste universal sobre qualquer conteúdo externo.
 
 **Nota de escopo:** a DT-03 rege a **exclusão individual solicitada pelo usuário**. A limpeza de arquivos de origem após uma migração confirmada continua sujeita à DT-20, com política operacional própria a ser refinada.
 
@@ -421,7 +425,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-06 | **DT-03 aprovada:** enviar nota à lixeira após confirmação; se indisponível ou falhar, informar erro sem excluir definitivamente. Detalhar suporte GIO/Flatpak e validações pré-exclusão | Segurança do usuário | PREP-02 |
 | QA-07 | **DT-04 aprovada:** instância única por sessão, ativações encaminhadas à janela existente, operações internas serializadas. Refinar limites entre sessões/instalações, arquivos ausentes, symlinks e concorrência externa | Robustez | PREP-02 |
 | QA-08 | Semântica de pesquisa (acentos, maiúsculas e correspondência parcial), empates de ordenação | Consistência de uso | PREP-02 |
-| QA-09 | Intervalo e condições de transparência aceitáveis, popovers/diálogos e contraste mínimo | Acessibilidade visual | PREP-02 |
+| QA-09 | **DT-10 aprovada:** transparência inicial de 0–70% nos fundos da janela principal e superfícies auxiliares opacas; validar contraste/legibilidade real, reduzindo máximo se necessário; detalhar testes e critérios visuais verificáveis | Acessibilidade visual | PREP-02 |
 | QA-10 | Dimensões mínimas reais e composição adaptativa | Usabilidade | PREP-02 |
 | QA-11 | **DT-07 aprovada:** continuar após colisões e falhas individuais recuperáveis, sem sobrescrever; relatar exportados, ignorados, erros e cancelamentos. Detalhar cópia segura, resultados incertos, destino igual à origem e erros que impedem continuar | Proteção das cópias | PREP-02 |
 | QA-12 | Detalhes de GSettings, esquema de versão, valores padrão e fallback de idioma | Persistência | PREP-02 |
@@ -455,6 +459,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-21 | Confirmar reconhecimento de `.md` por diretório e persistir o consentimento em GSettings; revisitar pasta válida sem novo diálogo; sem índice de notas nem autorização automática de portal |
 | DT-07 | Exportar as notas possíveis sem sobrescrever nomes ocupados; continuar após falhas individuais recuperáveis e relatar sucesso, itens ignorados, erros, cancelamento e parciais |
 | DT-08 | GNOME Platform/SDK 51 + Rust stable sem pin de versão; registrar versões efetivas e validar builds, compatibilidade e limitações de reprodutibilidade |
+| DT-10 | Transparência inicial 0–70% nos fundos do cabeçalho, editor e lateral; textos/controles opacos e fundos de diálogos, menus, popovers e preferências opacos; reduzir máximo se testes exigirem |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -462,6 +467,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 24 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 25 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
