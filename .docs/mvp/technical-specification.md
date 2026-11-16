@@ -425,10 +425,30 @@ Usar gettext para textos próprios da interface em pt-BR e inglês, com fallback
 - Produto: Oak Note; crate e binário `oak-note`.
 - Application ID e identificadores de desktop/AppStream: `io.github.rafaelcarvalho89.oaknote`.
 - Manifesto principal versionado em `flatpak/`.
-- Runtime `org.gnome.Platform` e SDK `org.gnome.Sdk` na mesma linha compatível, versão selecionada **antes de M1**; GNOME 50 da POC é **referência candidata**, não escolha final.
-- `Cargo.lock` fixado; fontes resolvidas antecipadamente para build Cargo offline no SDK.
+- **DT-08 aprovada (alternativa C):** runtime `org.gnome.Platform//51` e SDK `org.gnome.Sdk//51`; a referência GNOME 50 da POC não é a linha escolhida para o MVP e as integrações precisam de revalidação.
+- **Rust `stable` não fixado em versão exata:** adotar o canal estável corrente nas ferramentas de desenvolvimento e CI/Flatpak, sem fixar número de compilador por projeto; não declarar uma versão específica como baseline. Verificar em M1 como a extensão `org.freedesktop.Sdk.Extension.rust-stable` funciona com GNOME SDK 51 (base Freedesktop SDK 26.08) e registrar a versão realmente instalada.
+- Manter `Cargo.lock` versionado, preferir `cargo --locked` nos builds e resolução controlada de fontes para o build offline no SDK. Isso **fixa a resolução das dependências, não a toolchain Rust nem o conteúdo exato do SDK/extensão**, portanto não implica builds binariamente reproduzíveis.
 - Saída para GitHub Releases após validação e aprovação manual.
 - Não presumir atualização automática por distribuição de um arquivo `.flatpak` avulso.
+
+### 9.1.1. Compatibilidade e rastreabilidade de builds — DT-08 aprovada (alternativa C)
+
+**Direção:** os identificadores do runtime/SDK GNOME permanecem na linha **51**, mas o canal do compilador é **Rust stable móvel**, não uma versão de Rust fixada em `rust-toolchain.toml` ou no CI. Fixar apenas o nome `stable` em arquivo de ferramenta é compatível com a decisão, mas fixar número exato de release não é. As versões concretas dos compiladores e extensões podem mudar entre máquinas ou datas.
+
+**Contrato de build e validação:**
+1. Em M1, verificar que `org.gnome.Platform//51` e `org.gnome.Sdk//51` estão disponíveis e compatíveis com o ambiente de referência. GNOME 51 utiliza Freedesktop SDK **26.08** como base; a extensão Rust stable deve acompanhar a linha correspondente, com branch final e manifesto efetivo **confirmados no SDK instalado**, não presumidos.
+2. Verificar Rust/Cargo efetivamente fornecidos na compilação Flatpak e Rust/Cargo locais ou da CI. Versões distintas podem gerar comportamento e diagnósticos distintos; qualquer divergência relevante deve ser reportada e validada, sem troca silenciosa de baseline.
+3. Registrar, em logs/metadados do job de build, `rustc --version --verbose`, `cargo --version`, identidade/revisão do runtime, SDK e extensão Rust utilizados, dependências resolvidas e versão do artefato. Não colocar esses dados no conteúdo das notas.
+4. Exigir `Cargo.lock` no repositório e builds com `--locked` quando aplicável, além de testes `fmt`, `clippy`, `test` e build Flatpak; uma atualização do canal stable precisa passar pelas verificações **antes de publicação**, sem promover automaticamente artefatos.
+5. Validar GTK4/libadwaita, GIO, portais, transparência/Wayland, GSettings e compatibilidade das dependências/crates com a versão de Rust disponível; registrar incompatibilidades e bloquear o release até correção. O runtime Flatpak GNOME 51 não exige que o host já esteja executando GNOME Shell 51, mas a integração do aplicativo com o GNOME/Debian-alvo deve ser testada.
+6. **Reprodutibilidade:** com canal móvel, SDK e extensões atualizáveis, não garantir builds binariamente idênticos entre datas. O registro de versões e revisões permite **rastreabilidade/diagnóstico**, não equivale a congelar o ambiente. Considerar snapshots externos apenas se futuramente necessário, sem rever silenciosamente a escolha C.
+
+**Limite de escopo:** esta DT-08 define versões-alvo e estratégia de evolução, **não validação técnica concluída**. Não criar ou editar manifesto Flatpak, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml` nem código até autorização de implementação.
+
+**Referências para conferência técnica:**
+- https://thisweek.gnome.org/posts/2026/08/twig-263/
+- https://github.com/flatpak/flatpak-builder-tools/blob/master/cargo/README.md
+- https://rust-lang.github.io/rustup/overrides.html
 
 ### 9.2. Permissões — DT-18 aprovada (alternativa A)
 
@@ -457,7 +477,7 @@ Usar gettext para textos próprios da interface em pt-BR e inglês, com fallback
 
 ### 9.3. Build e release
 
-Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificação de build Flatpak/manifesto e testes manuais no GNOME/Wayland antes do release. O processo de liberação verifica licença MIT, changelog, metadados AppStream e caminho de instalação.
+Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificação de build Flatpak/manifesto e testes manuais no GNOME/Wayland antes do release. **DT-08:** Rust stable móvel exige verificação do compilador/SDK efetivos e compatibilidade a cada build/release; `Cargo.lock` e `--locked` evitam deriva das dependências resolvidas, não da ferramenta de compilação. O processo de liberação verifica licença MIT, changelog, metadados AppStream e caminho de instalação.
 
 ## 10. Qualidade, testes e diagnósticos
 
@@ -481,6 +501,7 @@ Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificaç
 | DT-18 — permissões Flatpak | Manifesto restrito a `xdg-documents`, nenhuma permissão `home`/`host`; portal para nova pasta; listagem, leitura, criação, atualização, rename/replace, sincronização quando suportada, lixeira, teste em FUSE, revogação e persistência do acesso após reinício; rejeitar pasta incompatível sem alterar destino anterior |
 | DT-19 — confirmação | Pasta com `.md` preexistente na raiz no primeiro acesso: aceitar, escolher outra pasta, cancelar, pasta vazia, subdiretórios ignorados e não modificação dos arquivos |
 | DT-21 — persistência da confirmação | Confirmar pasta A e B, reiniciar e revisitar sem novo diálogo; pasta nova exige consentimento; valores GSettings inválidos, pasta substituída/inacessível, referência do portal expirada/revogada e identidade ambígua não permitem reconhecimento silencioso |
+| DT-08 — runtime/toolchain | GNOME Platform/SDK 51, extensão Rust stable compatível, ambiente Flatpak real, Cargo.lock + --locked, registro de versões efetivas Rust/Cargo/SDK, atualização de stable com testes, libadwaita/GTK4/portais no Debian/GNOME/Wayland; sem alegação de build idêntico garantido |
 | Troca de pasta | Escolha de manter, escolha de migrar, cancelamento, arquivos de mesmo nome, edições pendentes e falhas parciais sem perda silenciosa |
 | DT-20 — cópia/validação | Cópia integral com verificação de bytes/hash; nenhuma ativação com cópia incompleta, origem modificada, destino ocupado ou acesso negado; arquivos de origem intactos durante a transferência |
 | DT-20 — ativação/limpeza | Confirmação adicional para remoção, revalidação antes de cada exclusão, cancelamento da limpeza, falha parcial de remoção e persistência correta do diretório ativo |
@@ -512,19 +533,18 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | RF-15–22 | features `notes`/`appearance`/`storage` + GSettings | teste manual de interface |
 | RF-23 | feature `export` + portal (DT-07) | integração de exportação parcial/colisão/cancelamento, relatório e testes manuais do portal |
 | RF-24 | feature de UI/localização + gettext | checagem de tradução e teste manual |
-| RF-25 | flatpak + CI | build, instalação e smoke test |
+| RF-25 | flatpak + CI (DT-08) | build, instalação e smoke test GNOME 51 com Rust stable móvel; logs de versões, reprodutibilidade limitada e compatibilidade das dependências |
 | RF-26 | feature de storage + GSettings + portal (DT-18/DT-21) | seleção, validação das operações, autorização persistente e consentimento por pasta no GSettings, testados separadamente |
 | RF-27 | composição da aplicação + GApplication/AdwApplication + serviço de notas | ativações repetidas, buffer preservado e serialização de operações |
 | RNF-01–16 | transversal, conforme área | matriz de testes e revisão |
 
 ## 12. Decisões técnicas pendentes — não aprovadas
 
-**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. **DT-04 — A:** instância única por sessão da aplicação; novas ativações acionam a janela existente; operações internas serializadas, sem presumir proteção global contra editores externos. **DT-05 — B:** sincronizar dados do temporário, publicar via substituição atômica quando suportada e sincronizar o diretório quando disponível, distinguindo publicação de durabilidade verificada e resultados incertos. **DT-06 — B:** antes de trocar de nota ou encerrar normalmente, tentar concluir salvamentos; se falhar ou houver durabilidade incerta, oferecer retry, cancelar/continuar editando ou descartar com confirmação específica. Conflitos seguem DT-02 e encerramento forçado não garante recuperação. **DT-09 — B:** comparar metadados e hash de conteúdo mantidos em memória, verificados sob demanda antes de operações destrutivas; sem monitoramento contínuo obrigatório. **DT-18 — A:** conceder leitura/escrita estática somente a XDG Documentos no Flatpak e solicitar autorização por portal para outras pastas; testar operações reais e continuidade do acesso; jamais ampliar permissões automaticamente. **DT-21 — A:** persistir confirmações de reconhecimento de Markdown **por diretório** em GSettings; revisitas válidas não exigem confirmação, sem índice de notas ou concessão de acesso do sistema. **DT-07 — B:** exportar as notas possíveis sem sobrescrever destinos ocupados, continuar após falhas individuais recuperáveis e reportar exportadas, ignoradas, falhas e itens não processados, preservando originais. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
+**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. **DT-04 — A:** instância única por sessão da aplicação; novas ativações acionam a janela existente; operações internas serializadas, sem presumir proteção global contra editores externos. **DT-05 — B:** sincronizar dados do temporário, publicar via substituição atômica quando suportada e sincronizar o diretório quando disponível, distinguindo publicação de durabilidade verificada e resultados incertos. **DT-06 — B:** antes de trocar de nota ou encerrar normalmente, tentar concluir salvamentos; se falhar ou houver durabilidade incerta, oferecer retry, cancelar/continuar editando ou descartar com confirmação específica. Conflitos seguem DT-02 e encerramento forçado não garante recuperação. **DT-09 — B:** comparar metadados e hash de conteúdo mantidos em memória, verificados sob demanda antes de operações destrutivas; sem monitoramento contínuo obrigatório. **DT-18 — A:** conceder leitura/escrita estática somente a XDG Documentos no Flatpak e solicitar autorização por portal para outras pastas; testar operações reais e continuidade do acesso; jamais ampliar permissões automaticamente. **DT-21 — A:** persistir confirmações de reconhecimento de Markdown **por diretório** em GSettings; revisitas válidas não exigem confirmação, sem índice de notas ou concessão de acesso do sistema. **DT-07 — B:** exportar as notas possíveis sem sobrescrever destinos ocupados, continuar após falhas individuais recuperáveis e reportar exportadas, ignoradas, falhas e itens não processados, preservando originais. **DT-08 — C:** usar GNOME Platform/SDK 51 e canal Rust stable sem versão exata fixada; registrar versões efetivas e validar compatibilidade/release, sem prometer reprodutibilidade binária entre builds. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
 
 | Prioridade | ID | Decisão a tomar | Alternativas a investigar |
 | --- | --- | --- | --- |
 
-| Alta | DT-08 | Versão específica do runtime GNOME e toolchain | matriz de compatibilidade e manutenção |
 | Média | DT-10 | Intervalo e contraste de transparência; superfícies excepcionais | faixa 0–70% / limite menor mediante teste |
 | Média | DT-11 | Dimensões mínimas e comportamento responsivo | testes de layout GNOME |
 | Média | DT-12 | Padrões de atalhos e busca de título (Unicode/casefold) | GNOME HIG + testes |
@@ -533,15 +553,15 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | Média | DT-15 | Valores finais das chaves GSettings e migração | defaults e versionamento |
 | Média | DT-16 | Mecanismo de execução de I/O e retorno ao contexto GTK | GLib assíncrono / worker controlado |
 
-**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 estão aprovadas. A primeira rodada de decisões críticas de integridade e as DT-05/DT-06 foram aprovadas; **DT-09, DT-18, DT-21 e DT-07 também foram aprovadas; próxima decisão: DT-08 — versões do runtime GNOME e toolchain Rust**, com verificação de suporte e compatibilidade antes de M1. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
+**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 estão aprovadas. A primeira rodada de decisões críticas de integridade e as DT-05/DT-06 foram aprovadas; **DT-09, DT-18, DT-21, DT-07 e DT-08 também foram aprovadas; próxima decisão: DT-10 — transparência, contraste e superfícies de interface**, mantendo testes de suporte da DT-08 e permissões da DT-18 em M1. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
 
 ## 13. Critérios de conclusão da PREP-02
 
 Para declarar a PREP-02 aprovada, precisamos:
 1. Verificar cobertura de RF-01–RF-27 e RNF-01–RNF-16.
-2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02, DT-03, DT-04, DT-05, DT-06, DT-09, DT-18, DT-21 e DT-07 aprovadas; verificar limites de instância única, salvamento reforçado, fechamento seguro, fingerprints, permissões Flatpak, confirmação persistida por pasta e exportação parcial, refinando as demais decisões conforme risco antes do backlog.
+2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02, DT-03, DT-04, DT-05, DT-06, DT-09, DT-18, DT-21, DT-07 e DT-08 aprovadas; verificar limites de instância única, salvamento reforçado, fechamento seguro, fingerprints, permissões Flatpak, confirmação por pasta, exportação parcial e compatibilidade GNOME 51/Rust stable antes do backlog.
 3. Estabelecer contratos operacionais de salvamento, renomeação, exclusão, troca de pasta e exportação suficientemente testáveis.
-4. Definir a versão de runtime/SDK e principais dependências durante o planejamento, antes da implementação que delas dependa; considerar a validação de permissões e publicação atômica em pastas selecionadas.
+4. Respeitar a escolha GNOME Platform/SDK 51 e Rust stable não fixado (DT-08); validar versões efetivas/extensão/dependências, limitar promessas de reprodutibilidade e verificar permissões/publicação atômica em pastas selecionadas (DT-18).
 5. Definir limites verificáveis de acessibilidade e falhas.
 6. Confirmar que nenhum requisito foi inventado além da PREP-01.
 7. Revisar este documento e aceitar sua baseline antes do backlog INVEST na PREP-03.
