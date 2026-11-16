@@ -46,6 +46,7 @@ Não foram estabelecidas métricas numéricas de adoção, desempenho ou retenç
 | Área | Incluído no MVP | Limite do escopo |
 | --- | --- | --- |
 | Organização | Várias notas em **uma única janela** | Sem múltiplas janelas de notas |
+| Instância | Uma instância ativa por sessão; nova abertura ativa a janela existente | Sem editores independentes simultâneos na mesma sessão |
 | Edição | Editor de **Markdown textual**, sem preview obrigatório | Sem editor rico/WYSIWYG |
 | Arquivos | Uma nota por `.md`, nome físico derivado do título | Sem SQLite ou índice auxiliar |
 | Diretório de notas | Pasta XDG **Documentos** do usuário por padrão, com seleção de outro diretório nas preferências | Sem caminho fixo de usuário e sem obrigação de guardar em área privada do Flatpak |
@@ -84,6 +85,8 @@ O caminho da nota **não é uma identidade imutável**: a renomeação altera o 
 ### 4.2. Integridade e concorrência
 
 **ADR-03:** o salvamento automático usa debounce, arquivo temporário no mesmo diretório, substituição atômica quando suportada, escrita serializada por nota e tratamento explícito de falhas. Revisões antigas não podem substituir conteúdo mais recente.
+
+**DT-04 aprovada (alternativa A):** o Oak Note possui **uma instância ativa por sessão da aplicação**. Novas ativações na mesma sessão direcionam o usuário à janela existente, sem iniciar um segundo editor independente. Operações internas sobre a mesma nota — salvamento, renomeação, envio à lixeira e migração — devem ser coordenadas e serializadas. Essa regra não restringe editores externos, outras sessões ou instalações com identidade diferente; a detecção e resolução de conflitos da DT-02 continuam obrigatórias.
 
 **DT-02 aprovada (alternativa B):** se uma nota aberta tiver sido modificada, substituída, removida ou renomeada externamente, o Oak Note **bloqueia qualquer sobrescrita automática** do caminho afetado e sinaliza conflito. Oferece três ações: **recarregar a versão externa** (confirmando antes de descartar edições locais); **salvar a edição local como nova nota** (respeitando a sugestão editável de nome da DT-01 e sem substituir a versão externa); ou **cancelar**, mantendo o buffer e o conflito pendentes. Nenhum desses caminhos pode perder silenciosamente alterações. A detecção e a resolução operacional serão detalhadas na PREP-02.
 
@@ -193,6 +196,9 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **RF-26 — Configurar diretório das notas.** Por padrão, utilizar a pasta XDG **Documentos** do usuário e permitir selecionar outro diretório para o conjunto de notas gerenciado.  
 **Aceite:** em instalação inicial, o aplicativo reconhece a pasta Documentos configurada pelo sistema; exibe o diretório ativo; permite selecionar pasta alternativa e persiste a seleção; restaura o diretório escolhido ao reiniciar; informa indisponibilidade e ausência de permissão sem redirecionar ou perder notas silenciosamente. Ao trocar de pasta, **oferece escolha explícita entre manter as notas na origem e migrá-las**, sem movimentação ou remoção silenciosa. **Se a pasta selecionada contiver arquivos `.md` preexistentes na raiz, aplicar a confirmação da DT-19 antes de reconhecê-los como notas.** Na opção **migrar**, copiar sem sobrescrever arquivos existentes, conferir todas as cópias antes de ativar o novo destino e solicitar confirmação explícita antes de remover originais. Revalidar as condições de exclusão e preservar qualquer original cuja remoção não seja segura. Falhas, conflitos e cancelamentos precisam preservar os dados e ser comunicados.
 
+**RF-27 — Reativar instância existente.** Manter uma instância ativa por sessão do Oak Note, com uma janela principal para todas as notas (DT-04).  
+**Aceite:** iniciar o Oak Note novamente na mesma sessão reativa a janela já existente, sem outro editor independente; conteúdo e estados de salvamento não são reinicializados ou descartados. Falhas de ativação são comunicadas sem presumir exclusividade sobre outros programas ou sessões.
+
 ## 6. Requisitos não funcionais (RNF)
 
 | ID | Requisito | Evidência/critério de verificação |
@@ -201,7 +207,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 | RNF-02 | Operação offline | Criar, editar, buscar e salvar notas sem conexão; nenhuma conta exigida |
 | RNF-03 | Privacidade | Sem telemetria, sincronização ou envio de conteúdo das notas |
 | RNF-04 | Portabilidade | Arquivos Markdown individuais no diretório selecionado, legíveis em editor externo, sem front matter obrigatório |
-| RNF-05 | Integridade | Escrita temporária, publicação segura, concorrência controlada, conflitos e falhas testados |
+| RNF-05 | Integridade | Escrita temporária, publicação segura, coordenação interna e serialização de operações, conflitos externos e falhas testados; instância única não equivale a bloqueio global de filesystem |
 | RNF-06 | Responsividade | Operações de I/O não congelam o loop principal GTK; verificar manualmente e por testes aplicáveis |
 | RNF-07 | Acessibilidade de teclado | Funções essenciais sem mouse, foco visível e navegação consistente |
 | RNF-08 | Tecnologias assistivas | Verificação manual básica com Orca de controles e estados |
@@ -280,6 +286,13 @@ Os RNFs 05 e 06 não estabelecem, nesta etapa, garantias absolutas de durabilida
 
 **Pendente na PREP-02:** detalhamento operacional da cópia/validação, novas edições ou alterações externas durante a transferência, remoção parcial dos originais, retomada após interrupção e limpeza de cópias incompletas. As etapas de ativação e confirmação de remoção estão aprovadas pela DT-20.
 
+### UC-08 — Nova ativação da aplicação
+1. Com uma nota aberta no Oak Note, o usuário tenta iniciar a aplicação novamente na mesma sessão.
+2. A nova ativação é encaminhada à instância em execução.
+3. A janela existente é apresentada sem novo editor independente e sem perder conteúdo ou estados de salvamento.
+
+**Limite:** outros aplicativos e sessões podem modificar os mesmos arquivos; DT-02 permanece aplicável.
+
 ## 8. Estados da experiência
 
 Os seguintes estados precisam ser representados de maneira legível e acessível:
@@ -310,6 +323,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 **CA-06 — Arquivos portáveis:** inspecionar arquivos criados/renomeados em editor externo; confirmar Markdown puro e título coerente com o nome físico.
 
 **CA-16 — Exclusão pela lixeira:** cancelar exclusão preserva arquivo e lista; confirmar move a nota para a lixeira quando suportado; a lista é atualizada somente após sucesso. Simular lixeira indisponível, acesso negado e erro de operação: o arquivo permanece no local e **nunca** há exclusão definitiva substitutiva. Antes da operação, verificar edição pendente e alteração externa sem apagar revisão inesperada.
+
+**CA-17 — Instância única e concorrência:** iniciar o Oak Note repetidamente na mesma sessão e confirmar reativação da janela existente, sem segundo editor independente e sem perder alterações pendentes. Provocar operações internas simultâneas na mesma nota e verificar serialização, ausência de publicação obsoleta e integridade. Modificar externamente a nota e confirmar que a DT-02 continua aplicável.
 
 **CA-07 — Navegação:** criar várias notas, pesquisar pelo título, ordenar por modificação e recolher/expandir a barra lateral sem perda de edição.
 
@@ -379,7 +394,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-04 | Debounce exato, sincronização/durabilidade, escrita e retry em caso de falha | Proteção dos dados | PREP-02 |
 | QA-05 | **DT-02 aprovada:** recarregar com confirmação, salvar edição local como nova nota ou cancelar mantendo conflito; detalhar detecção, arquivo ausente/renomeado, fechamento e concorrência | Proteção dos dados | PREP-02 |
 | QA-06 | **DT-03 aprovada:** enviar nota à lixeira após confirmação; se indisponível ou falhar, informar erro sem excluir definitivamente. Detalhar suporte GIO/Flatpak e validações pré-exclusão | Segurança do usuário | PREP-02 |
-| QA-07 | Comportamento em arquivos ausentes, ilegíveis, links simbólicos e concorrência entre instâncias | Robustez | PREP-02 |
+| QA-07 | **DT-04 aprovada:** instância única por sessão, ativações encaminhadas à janela existente, operações internas serializadas. Refinar limites entre sessões/instalações, arquivos ausentes, symlinks e concorrência externa | Robustez | PREP-02 |
 | QA-08 | Semântica de pesquisa (acentos, maiúsculas e correspondência parcial), empates de ordenação | Consistência de uso | PREP-02 |
 | QA-09 | Intervalo e condições de transparência aceitáveis, popovers/diálogos e contraste mínimo | Acessibilidade visual | PREP-02 |
 | QA-10 | Dimensões mínimas reais e composição adaptativa | Usabilidade | PREP-02 |
@@ -407,6 +422,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-20 | Migrar: copiar tudo sem sobrescrever, validar antes de ativar destino, confirmar explicitamente antes de remover originais e verificar segurança |
 | DT-02 | Conflito externo: bloquear sobrescrita e oferecer recarregar com confirmação, salvar local como nova nota ou cancelar preservando o buffer |
 | DT-03 | Excluir nota: mover para lixeira após confirmação; sem exclusão permanente como fallback |
+| DT-04 | Uma instância ativa por sessão, com reativação da janela existente e serialização interna; conflitos externos permanecem protegidos |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -414,6 +430,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 26 RFs, 16 RNFs, 16 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 17 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
