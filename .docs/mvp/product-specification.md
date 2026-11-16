@@ -54,7 +54,7 @@ Não foram estabelecidas métricas numéricas de adoção, desempenho ou retenç
 | Busca | Pesquisa rápida **por título** | Sem busca de conteúdo |
 | Ordenação | Mais recentemente modificada primeiro | Sem ordenação configurável |
 | Persistência | Autosave, gravação segura, controle de conflito e erros | Sem versões históricas automáticas |
-| Layout | Barra lateral recolhível e editor expandido | Sem interface definitiva de múltiplos painéis |
+| Layout | Barra lateral recolhível, adaptativa em larguras reduzidas, priorizando o editor (DT-11) | Sem múltiplas janelas ou modos de edição complexos |
 | Janela | Redimensionamento, maximização e restauração de estado | Sem controle programático de posição |
 | Sobreposição | Ativação **manual** pelo GNOME | Sem extensão GNOME no MVP |
 | Aparência | Sistema/Claro/Escuro e transparência dos **fundos da janela principal**, inclusive cabeçalho | Sem tornar conteúdo translúcido ou habilitar click-through |
@@ -169,7 +169,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 ### 5.3. Navegação, janela e aparência
 
 **RF-15 — Barra lateral recolhível.** Permitir mostrar ou ocultar a lista de notas.  
-**Aceite:** ao recolher, o editor ganha espaço útil; ao expandir, a navegação retorna sem perder o texto.
+**Aceite:** **DT-11 aprovada (alternativa B):** em largura suficiente, a barra lateral respeita a visibilidade escolhida manualmente pelo usuário; abaixo de um limite de largura a validar, a área de edição é priorizada e a lateral se recolhe automaticamente, com acesso à navegação por controle explícito, inclusive via teclado. **Recolhimento automático não altera a preferência manual persistida**: ao ampliar novamente, a lateral retorna apenas se o usuário a havia deixado visível. Trocas de largura não perdem texto, nota selecionada, foco de edição ou estados de salvamento.
 
 **RF-16 — Temas.** Oferecer Sistema, Claro e Escuro.  
 **Aceite:** a escolha aplica aparência correspondente sem reiniciar e é restaurada; Sistema acompanha a preferência disponível do GNOME.
@@ -181,7 +181,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** o produto não bloqueia o procedimento manual validado para manter a janela acima de outras janelas normais e documenta como ativá-lo/desativá-lo. Não promete ativação pelo próprio Oak Note.
 
 **RF-19 — Estado da janela.** Restaurar largura, altura, maximização e última nota quando aplicável.  
-**Aceite:** ao reabrir, estado válido é recuperado; se a nota anterior não existir, a aplicação abre sem erro impeditivo; a posição fica a cargo do GNOME.
+**Aceite:** ao reabrir, dimensões e maximização válidas são recuperadas e o layout se adapta ao espaço disponível (DT-11); a preferência manual da barra lateral é restaurada independentemente de recolhimentos automáticos anteriores. Se a nota anterior não existir, a aplicação abre sem erro impeditivo; a posição fica a cargo do GNOME. Os limites mínimos de largura/altura e o ponto de quebra devem ser validados com GNOME/Wayland, pt-BR/en-US, escala de interface e acessibilidade, sem fixar números não testados.
 
 **RF-20 — Atalhos internos.** Oferecer ações essenciais por teclado.  
 **Aceite:** criar nota, pesquisar, recolher a barra lateral e acessar preferências têm atalhos internos documentados e funcionais quando a janela possui foco. Mapeamento sugerido: `Ctrl+N`, `Ctrl+F`, `F9`, `Ctrl+,` e `Esc` (a confirmar quanto a conflitos).
@@ -347,7 +347,7 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-19 — Troca e encerramento seguros (DT-06):** com nota alterada, tentar trocar ou fechar e verificar tentativa de salvar antes de prosseguir. Simular erro antes da publicação, resultado incerto e falha de sync após publicação: exibir **tentar novamente**, **cancelar** ou **descartar com confirmação específica**, preservando a edição ao cancelar e sem informar falsamente salvamento seguro. Com conflito externo, manter opções da DT-02. Com várias notas pendentes, não concluir fechamento com descarte silencioso. Confirmar que encerrar à força não oferece garantia de recuperação.
 
-**CA-07 — Navegação:** criar várias notas, pesquisar pelo título, ordenar por modificação e recolher/expandir a barra lateral sem perda de edição.
+**CA-07 — Navegação:** criar várias notas, pesquisar pelo título, ordenar por modificação e recolher/expandir a barra lateral sem perda de edição; validar que o recolhimento automático por largura não modifica a preferência manual da lateral.
 
 **CA-08 — Aparência:** alternar Sistema/Claro/Escuro, variar transparência inicial de 0–70% e reiniciar; confirmar persistência, fundo opaco em 0%, transparência seletiva no cabeçalho, editor e lateral, opacidade dos textos e controles, e ausência de click-through.
 
@@ -372,6 +372,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 **CA-24 — Compatibilidade da toolchain (DT-08):** confirmar que runtime/SDK Flatpak GNOME 51 e extensão Rust stable compatível permitem build, instalação e execução no ambiente-alvo; registrar em CI a versão efetiva de Rust/Cargo, SDK/extensão e dependências relevantes. Verificar que atualização do canal stable dispara validação e que falhas de compatibilidade bloqueiam release; não afirmar que dois builds em datas diferentes serão idênticos.
 
 **CA-25 — Transparência e legibilidade (DT-10):** testar 0%, valores intermediários e 70% nos temas Claro/Escuro, sobre fundos externos claros, escuros e visuais complexos; conferir que só fundos do cabeçalho, editor e lateral são translúcidos e que diálogos, menus, popovers e preferências mantêm fundos opacos. Validar legibilidade de texto, foco, cursor, seleção e ícones; sem click-through. Caso 70% comprometa acessibilidade, reduzir o limite máximo documentando o resultado do teste, sem prometer contraste universal sobre qualquer conteúdo externo.
+
+**CA-26 — Layout adaptativo e lateral manual (DT-11):** alternar larguras ampla/estreita/ampla com lateral manualmente visível e manualmente oculta; em largura estreita, editor permanece utilizável e lateral se recolhe automaticamente, com navegação acessível por controle e teclado. Ao voltar à largura ampla, restaurar exclusivamente a preferência manual (não o último recolhimento automático). Testar maximização, reinício, notas com edições não salvas, escala/idioma pt-BR/en-US e controles acessíveis. Documentar largura/altura mínima e limiar de adaptação após testes reais, sem pressupor números.
 
 **Nota de escopo:** a DT-03 rege a **exclusão individual solicitada pelo usuário**. A limpeza de arquivos de origem após uma migração confirmada continua sujeita à DT-20, com política operacional própria a ser refinada.
 
@@ -426,7 +428,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-07 | **DT-04 aprovada:** instância única por sessão, ativações encaminhadas à janela existente, operações internas serializadas. Refinar limites entre sessões/instalações, arquivos ausentes, symlinks e concorrência externa | Robustez | PREP-02 |
 | QA-08 | Semântica de pesquisa (acentos, maiúsculas e correspondência parcial), empates de ordenação | Consistência de uso | PREP-02 |
 | QA-09 | **DT-10 aprovada:** transparência inicial de 0–70% nos fundos da janela principal e superfícies auxiliares opacas; validar contraste/legibilidade real, reduzindo máximo se necessário; detalhar testes e critérios visuais verificáveis | Acessibilidade visual | PREP-02 |
-| QA-10 | Dimensões mínimas reais e composição adaptativa | Usabilidade | PREP-02 |
+| QA-10 | **DT-11 aprovada:** recolhimento automático da barra lateral em janela estreita e prioridade ao editor, independente do estado manual persistido; validar mínimo de largura/altura, breakpoint, navegação/teclado, escala e locais pt-BR/en-US | Usabilidade | PREP-02 |
 | QA-11 | **DT-07 aprovada:** continuar após colisões e falhas individuais recuperáveis, sem sobrescrever; relatar exportados, ignorados, erros e cancelamentos. Detalhar cópia segura, resultados incertos, destino igual à origem e erros que impedem continuar | Proteção das cópias | PREP-02 |
 | QA-12 | Detalhes de GSettings, esquema de versão, valores padrão e fallback de idioma | Persistência | PREP-02 |
 | QA-13 | **DT-08 aprovada:** GNOME Platform/SDK 51 e Rust stable não fixado; exigir diagnóstico do compilador e validação da extensão SDK, dependências e funcionamento no host. Metadados definitivos e matriz de compatibilidade devem ser concluídos antes de M1/release | Distribuição | PREP-02 |
@@ -460,6 +462,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-07 | Exportar as notas possíveis sem sobrescrever nomes ocupados; continuar após falhas individuais recuperáveis e relatar sucesso, itens ignorados, erros, cancelamento e parciais |
 | DT-08 | GNOME Platform/SDK 51 + Rust stable sem pin de versão; registrar versões efetivas e validar builds, compatibilidade e limitações de reprodutibilidade |
 | DT-10 | Transparência inicial 0–70% nos fundos do cabeçalho, editor e lateral; textos/controles opacos e fundos de diálogos, menus, popovers e preferências opacos; reduzir máximo se testes exigirem |
+| DT-11 | Adaptar layout por largura com recolhimento automático da lateral, priorizando editor; manter preferência manual independente, sem fixar dimensões e limiar antes dos testes |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -467,6 +470,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 25 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 26 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
