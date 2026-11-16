@@ -335,7 +335,7 @@ A exclusão solicitada pelo usuário deve **mover o arquivo Markdown selecionado
 
 ### 7.1. Composição
 
-Janela principal com barra de cabeçalho, lista lateral recolhível e editor `GtkTextView` simples, sem renderização Markdown. Preferências usam janela libadwaita nativa. Escolhas de UI nativa devem ser compatíveis com versões de SDK selecionadas.
+Janela principal com barra de cabeçalho, lista lateral recolhível e editor `GtkTextView` simples, sem renderização Markdown. **DT-11:** layout adaptativo à largura disponível; o editor tem prioridade quando a janela fica estreita e a lateral se recolhe automaticamente, mantendo um controle acessível de navegação e preservando a preferência manual do usuário. Preferências usam janela libadwaita nativa. Escolhas de UI nativa devem ser compatíveis com o GNOME SDK 51 (DT-08).
 
 A UI apresenta estados de notas e salvamento, confirma exclusão, informa conflito, **exibe a pasta ativa e permite alterá-la nas preferências**, além de abrir seletor de diretório na exportação. A navegação por teclado é requisito, não adição opcional.
 
@@ -366,6 +366,27 @@ O contexto GTK executa manipulação de widgets; I/O de arquivos que possa bloqu
 - Atalho global externo: usuário configura no GNOME; o aplicativo só oferece instalação/comando de inicialização.
 - Sempre no topo: recurso **manual** do menu/gerenciador de janelas GNOME, sem API de automação nem dependência de extensão no MVP.
 
+### 7.4.0. Layout responsivo e barra lateral — DT-11 aprovada (alternativa B)
+
+**Contrato de interface:** quando a largura disponível permitir, apresentar editor e lateral lado a lado **se a preferência manual da lateral estiver ativa**. Quando a largura ficar inferior ao limiar adaptativo validado, recolher automaticamente a lateral e **priorizar a área de edição**, sem bloquear acesso à lista ou ações essenciais. O recolhimento responsivo não equivale a escolha manual do usuário.
+
+**Estado de visibilidade:**
+- `sidebar-visible` no GSettings representa **apenas a intenção manual** do usuário, não o resultado momentâneo de uma largura reduzida. Não persistir o recolhimento automático nessa chave.
+- Visibilidade efetiva decorre da combinação entre **intenção manual**, **largura disponível** e, se necessário, **navegação temporária explicitamente solicitada** pelo usuário. Em largura estreita, a lista permanece acessível por um controle de navegação com teclado; apresentar temporariamente a lateral não precisa transformar o editor em outra janela ou modo permanente.
+- Quando a janela volta a ficar larga, restaurar a visibilidade **conforme a intenção manual**. Se a lateral foi ocultada manualmente, não reaparecer espontaneamente só pelo aumento da janela.
+- Não reinicializar editor, nota ativa, buffers, foco, estados de conflito ou salvamento ao atravessar o ponto de quebra. A navegação temporária não pode ignorar a DT-06 sobre sair de nota com alterações pendentes.
+
+**Candidatos de implementação para investigar (não decididos):** componentes adaptativos da libadwaita como `AdwOverlaySplitView` ou combinação equivalente suportada no SDK 51; separar estado manual de estado responsivo no modelo de UI. Se o componente escolhido introduzir mudança de navegação, preservar as mesmas ações da única janela, sem nova sessão de edição.
+
+**Limites e critérios de responsividade:**
+1. **Nenhuma largura/altura mínima ou breakpoint numérico é aprovado agora**. Derivar valores de testes do layout real, dimensões de controles, tradução pt-BR/en-US, escala de texto, teclado e comportamento de foco, sem cortar ações essenciais.
+2. Validar largura estreita, limiar, larga e maximizada, incluindo transições repetidas estreita→larga→estreita. O editor deve ter espaço utilizável e evitar corte/colisões de cabeçalho, controles, barra lateral ou indicações de salvamento.
+3. Validar tanto intenção manual “lateral visível” quanto “lateral oculta”, incluindo reabertura do aplicativo com dimensões persistidas. O estado responsivo não altera a preferência gravada; restauração normal não cria expansão inesperada.
+4. Confirmar navegação acessível por teclado e tecnologia assistiva básica, foco perceptível, sem perda do buffer e sem click-through; incluir layout em tema Claro/Escuro e transparência conforme DT-10.
+5. Caso as dimensões mínimas testadas não acomodem ações essenciais, ajustar a composição ou o mínimo da janela antes do release, registrando a razão; não fixar números arbitrários apenas por conveniência estética.
+
+**Limite de escopo:** comportamento adaptativo é aprovado; valores concretos de `min-width`, `min-height`, breakpoint, transição e escolha de widget ainda exigem protótipo e validação no M3 com GTK4/libadwaita/GNOME 51. Não se exige uma segunda interface independente em modo compacto.
+
 ### 7.4.1. Instância única por sessão — DT-04 aprovada (alternativa A)
 
 - **Invariante:** dentro de uma mesma sessão/identidade de execução do Oak Note, existe somente uma instância ativa que controla o editor e a janela principal. Uma nova tentativa de abertura **encaminha uma solicitação de ativação à instância existente**, em vez de inicializar um segundo editor independente.
@@ -392,7 +413,7 @@ Usar gettext para textos próprios da interface em pt-BR e inglês, com fallback
 | `notes-directory` | URI/caminho GFile serializável (formato final a decidir) | diretório especial XDG Documentos | Preferência |
 | `confirmed-notes-directories` | conjunto/lista de referências a diretórios aceitos (representação final a definir) | vazio | Consentimento de reconhecimento por diretório (DT-21), **não permissão de filesystem** |
 | `background-transparency` | inteiro 0–70 | 0 | Preferência |
-| `sidebar-visible` | boolean | true | Preferência |
+| `sidebar-visible` | boolean | true | **Preferência manual** da barra lateral; recolhimento automático DT-11 é estado transitório, não persistido |
 | `window-width` | inteiro positivo | 800 | Estado |
 | `window-height` | inteiro positivo | 560 | Estado |
 | `window-maximized` | boolean | false | Estado |
@@ -518,7 +539,7 @@ Os testes de integração de filesystem devem usar diretórios isolados e não d
 - Tema do sistema e troca em tempo real; clareamento/escurecimento correto.
 - Fundo com transparência em cabeçalho, lista e editor; sem transparência dos controles.
 - Texto, foco, seleção e cursor legíveis com conteúdos sobrepostos de fundo variados.
-- Layout compacto, redimensionamento, maximização e restauração.
+- DT-11: layout estreito/largo, recolhimento automático, acesso temporário à lista e retorno à preferência manual; testar tamanhos mínimos validados, pt-BR/en-US, escala de texto, maximização, restauração e edição pendente sem perda de buffer.
 - Navegação por teclado, atalhos, Orca e mensagens de erro.
 - GNOME manual “Sempre no topo”, funcionamento quando outra janela está ativa.
 - Instalação/execução Flatpak e acessos autorizados, inclusive leitura/gravação em XDG Documentos, escolha de pasta externa e exportação via portal.
@@ -533,7 +554,7 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | --- | --- | --- |
 | RF-01–08 | feature `notes` + porta de repositório seletiva | unitário e integração de filesystem |
 | RF-09–14 | feature `notes` (SaveCoordinator + adaptador), incluindo estados de persistência DT-05 e coordenação de navegação/fechamento DT-06 | unitário, integração, falhas antes/depois da publicação, decisões do usuário e testes manuais de fechamento |
-| RF-15–22 | features `notes`/`appearance`/`storage` + GSettings | teste manual de interface |
+| RF-15–22 | features `notes`/`appearance`/`storage` + GSettings, incluindo DT-11 | teste manual de layout adaptativo, intenção manual da lateral, acessibilidade e persistência |
 | RF-23 | feature `export` + portal (DT-07) | integração de exportação parcial/colisão/cancelamento, relatório e testes manuais do portal |
 | RF-24 | feature de UI/localização + gettext | checagem de tradução e teste manual |
 | RF-25 | flatpak + CI (DT-08) | build, instalação e smoke test GNOME 51 com Rust stable móvel; logs de versões, reprodutibilidade limitada e compatibilidade das dependências |
@@ -543,25 +564,24 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 
 ## 12. Decisões técnicas pendentes — não aprovadas
 
-**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. **DT-04 — A:** instância única por sessão da aplicação; novas ativações acionam a janela existente; operações internas serializadas, sem presumir proteção global contra editores externos. **DT-05 — B:** sincronizar dados do temporário, publicar via substituição atômica quando suportada e sincronizar o diretório quando disponível, distinguindo publicação de durabilidade verificada e resultados incertos. **DT-06 — B:** antes de trocar de nota ou encerrar normalmente, tentar concluir salvamentos; se falhar ou houver durabilidade incerta, oferecer retry, cancelar/continuar editando ou descartar com confirmação específica. Conflitos seguem DT-02 e encerramento forçado não garante recuperação. **DT-09 — B:** comparar metadados e hash de conteúdo mantidos em memória, verificados sob demanda antes de operações destrutivas; sem monitoramento contínuo obrigatório. **DT-18 — A:** conceder leitura/escrita estática somente a XDG Documentos no Flatpak e solicitar autorização por portal para outras pastas; testar operações reais e continuidade do acesso; jamais ampliar permissões automaticamente. **DT-21 — A:** persistir confirmações de reconhecimento de Markdown **por diretório** em GSettings; revisitas válidas não exigem confirmação, sem índice de notas ou concessão de acesso do sistema. **DT-07 — B:** exportar as notas possíveis sem sobrescrever destinos ocupados, continuar após falhas individuais recuperáveis e reportar exportadas, ignoradas, falhas e itens não processados, preservando originais. **DT-08 — C:** usar GNOME Platform/SDK 51 e canal Rust stable sem versão exata fixada; registrar versões efetivas e validar compatibilidade/release, sem prometer reprodutibilidade binária entre builds. **DT-10 — A:** transparência inicial de 0–70% nos fundos da janela principal; conteúdo e controles visualmente opacos; fundos de menus, popovers, diálogos e preferências opacos. Validar legibilidade e reduzir limite se necessário. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
+**Decisões concluídas:** **DT-01 — B:** sugerir nome alternativo editável em colisões, sem sobrescrever. **DT-17 — C:** oferecer manter notas na origem ou migrá-las. **DT-19 — B:** solicitar confirmação inicial para reconhecer `.md` preexistentes na raiz. **DT-20 — B:** copiar e validar integralmente antes de ativar a nova pasta; pedir confirmação adicional e revalidar antes de remover originais. **DT-02 — B:** em conflito externo, bloquear sobrescrita e oferecer recarregar com confirmação, salvar edição local como nova nota ou cancelar preservando o buffer e o estado de conflito. **DT-03 — A:** mover a nota para lixeira após confirmação, sem exclusão definitiva caso falhe ou não seja suportado. **DT-04 — A:** instância única por sessão da aplicação; novas ativações acionam a janela existente; operações internas serializadas, sem presumir proteção global contra editores externos. **DT-05 — B:** sincronizar dados do temporário, publicar via substituição atômica quando suportada e sincronizar o diretório quando disponível, distinguindo publicação de durabilidade verificada e resultados incertos. **DT-06 — B:** antes de trocar de nota ou encerrar normalmente, tentar concluir salvamentos; se falhar ou houver durabilidade incerta, oferecer retry, cancelar/continuar editando ou descartar com confirmação específica. Conflitos seguem DT-02 e encerramento forçado não garante recuperação. **DT-09 — B:** comparar metadados e hash de conteúdo mantidos em memória, verificados sob demanda antes de operações destrutivas; sem monitoramento contínuo obrigatório. **DT-18 — A:** conceder leitura/escrita estática somente a XDG Documentos no Flatpak e solicitar autorização por portal para outras pastas; testar operações reais e continuidade do acesso; jamais ampliar permissões automaticamente. **DT-21 — A:** persistir confirmações de reconhecimento de Markdown **por diretório** em GSettings; revisitas válidas não exigem confirmação, sem índice de notas ou concessão de acesso do sistema. **DT-07 — B:** exportar as notas possíveis sem sobrescrever destinos ocupados, continuar após falhas individuais recuperáveis e reportar exportadas, ignoradas, falhas e itens não processados, preservando originais. **DT-08 — C:** usar GNOME Platform/SDK 51 e canal Rust stable sem versão exata fixada; registrar versões efetivas e validar compatibilidade/release, sem prometer reprodutibilidade binária entre builds. **DT-10 — A:** transparência inicial de 0–70% nos fundos da janela principal; conteúdo e controles visualmente opacos; fundos de menus, popovers, diálogos e preferências opacos. Validar legibilidade e reduzir limite se necessário. **DT-11 — B:** layout adaptativo à largura; recolhimento automático da lateral em janela estreita com prioridade ao editor; manter preferência manual persistida independentemente do recolhimento responsivo. Permanecem pendentes os detalhes técnicos de detecção, recuperação e permissões, sem alterar essas decisões aprovadas.
 
 | Prioridade | ID | Decisão a tomar | Alternativas a investigar |
 | --- | --- | --- | --- |
 
-| Média | DT-11 | Dimensões mínimas e comportamento responsivo | testes de layout GNOME |
 | Média | DT-12 | Padrões de atalhos e busca de título (Unicode/casefold) | GNOME HIG + testes |
 | Média | DT-13 | Ordem estável em empate de timestamp e arquivos sem mtime | título/caminho como desempate |
 | Média | DT-14 | Política de arquivos inesperados e symlinks | ignorar e notificar / validar |
 | Média | DT-15 | Valores finais das chaves GSettings e migração | defaults e versionamento |
 | Média | DT-16 | Mecanismo de execução de I/O e retorno ao contexto GTK | GLib assíncrono / worker controlado |
 
-**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 estão aprovadas. A primeira rodada de decisões críticas de integridade e as DT-05/DT-06 foram aprovadas; **DT-09, DT-18, DT-21, DT-07, DT-08 e DT-10 também foram aprovadas; próxima decisão: DT-11 — dimensões mínimas e adaptação de layout**, mantendo testes de legibilidade DT-10, suporte DT-08 e permissões DT-18 em M1. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
+**Recomendação de refinamento:** DT-01, DT-17, DT-19, DT-20, DT-02, DT-03 e DT-04 estão aprovadas. A primeira rodada de decisões críticas de integridade e as DT-05/DT-06 foram aprovadas; **DT-09, DT-18, DT-21, DT-07, DT-08, DT-10 e DT-11 também foram aprovadas; próxima decisão: DT-12 — atalhos internos e semântica de busca Unicode**, preservando validações de responsividade DT-11, legibilidade DT-10, suporte DT-08 e permissões DT-18. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
 
 ## 13. Critérios de conclusão da PREP-02
 
 Para declarar a PREP-02 aprovada, precisamos:
 1. Verificar cobertura de RF-01–RF-27 e RNF-01–RNF-16.
-2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02, DT-03, DT-04, DT-05, DT-06, DT-09, DT-18, DT-21, DT-07, DT-08 e DT-10 aprovadas; verificar integridade do salvamento, Flatpak, compatibilidade GNOME 51/Rust stable, transparência e legibilidade antes do backlog.
+2. Incorporar as DT-01, DT-17, DT-19, DT-20, DT-02, DT-03, DT-04, DT-05, DT-06, DT-09, DT-18, DT-21, DT-07, DT-08, DT-10 e DT-11 aprovadas; verificar integridade do salvamento, Flatpak, compatibilidade GNOME 51/Rust stable, transparência/legibilidade e responsividade antes do backlog.
 3. Estabelecer contratos operacionais de salvamento, renomeação, exclusão, troca de pasta e exportação suficientemente testáveis.
 4. Respeitar a escolha GNOME Platform/SDK 51 e Rust stable não fixado (DT-08); validar versões efetivas/extensão/dependências, limitar promessas de reprodutibilidade e verificar permissões/publicação atômica em pastas selecionadas (DT-18).
 5. Definir limites verificáveis de acessibilidade e falhas.
