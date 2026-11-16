@@ -134,6 +134,7 @@ NoteSnapshot
 - Não considerar a área privada do Flatpak o destino padrão das notas; dados operacionais internos e configurações podem continuar em áreas próprias.
 - Se o diretório padrão ou escolhido estiver indisponível, informar e solicitar intervenção, **sem redirecionar silenciosamente** e sem apagar/transportar arquivos.
 - A pasta Documentos pode conter `.md` criados fora do Oak Note. **É obrigatório definir política para arquivos preexistentes e escopo de listagem**, evitando tocar arquivos de terceiros sem ação do usuário (DT-19).
+- **DT-19 aprovada (alternativa B):** ao primeiro acesso a pasta com arquivos `.md` **preexistentes na raiz**, informar que serão reconhecidos como notas e solicitar confirmação. Oferecer **aceitar** ou **selecionar outra pasta**; antes da confirmação, não apresentar/abrir o conteúdo como nota. A detecção não percorre subdiretórios, não importa arquivos nem os altera. Pastas sem arquivos `.md` na raiz não exigem confirmação. A forma de lembrar a autorização por pasta será refinada (DT-21), sem índice das notas.
 - **DT-17 aprovada (alternativa C):** ao trocar a pasta ativa, oferecer opção explícita de **manter notas na origem** ou **migrá-las para a pasta selecionada**. Manter significa preservar a origem e trabalhar na nova pasta. Migrar exige consentimento, controle de alterações pendentes, detecção de colisões e tratamento de falhas, sem remoção silenciosa de dados. A estratégia operacional de migração ainda será refinada.
 
 **Flatpak:** a permissão estática `--filesystem=xdg-documents` é candidata prática para acesso transparente à pasta Documentos configurada pelo usuário; porém permite acesso amplo **dentro de Documentos**, e exige revisão de mínimo privilégio. Para locais arbitrários, priorizar o portal de seleção de pasta com acesso autorizado pelo usuário; verificar persistência do acesso entre sessões e se criar/renomear/substituir arquivos com segurança é suportado no caminho devolvido pelo portal (DT-18). Não conceder `--filesystem=home` somente para acomodar a escolha de pasta. As garantias de escrita atômica podem variar no caminho FUSE do portal e precisam ser validadas experimentalmente.
@@ -149,7 +150,7 @@ Referências oficiais:
 
 **DT-01 aprovada — alternativa B:** em caso de colisão, **sugerir nome alternativo disponível** (ex.: `Ideias (2).md`), com possibilidade de aceitar ou editar antes de confirmar. **Nunca substituir arquivo existente**. A normalização de caracteres, extensão, casefold, números de sufixo e o nome inicial sugerido ainda exigem detalhamento.
 
-Listar somente arquivos regulares apropriados do diretório de notas. Definir política sobre symlinks e arquivos não regulares antes do desenvolvimento; não presumir que entradas externas sejam seguras.
+Listar somente arquivos regulares apropriados **na raiz** do diretório ativo; sem busca recursiva. Condicionar o reconhecimento de arquivos `.md` preexistentes no primeiro acesso à confirmação do usuário (DT-19). Definir política sobre symlinks e arquivos não regulares antes do desenvolvimento; não presumir que entradas externas sejam seguras.
 
 ### 4.4. Fonte de verdade e reordenação
 
@@ -208,7 +209,7 @@ Quando houver conflito, o sistema preservará a edição em memória e deverá d
 | Caso de uso | Camada de aplicação | Infraestrutura | Erro/contingência |
 | --- | --- | --- | --- |
 | Criar | Validar título, sugerir alternativa editável em colisão, coordenar seleção e salvar | Criação sem sobrescrita na pasta ativa | Nome duplicado, I/O |
-| Listar | Ordenar e filtrar metadados | Enumeração controlada | Entrada inválida/inacessível |
+| Listar | Ordenar e filtrar metadados, respeitando a confirmação inicial DT-19 | Detecção/enumeração controlada sem mutação | Entrada inválida, recusa ou escolha de outra pasta |
 | Selecionar | Proteger edição pendente anterior | Leitura condicionada | Arquivo removido |
 | Editar | Atualizar revisão, agendar autosave | Nenhuma escrita direta pela UI | Falha posterior de gravação |
 | Renomear | Coordenar salvamento e referência mutável | Renomeação sem colisão | Conflito externo |
@@ -323,6 +324,7 @@ Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificaç
 | Busca/ordem | correspondência por título, mudança de mtime e empates |
 | Preferências | defaults, leitura/atualização, restauração, pasta de notas e entrada inválida |
 | Diretório de notas | XDG Documentos em instalações pt-BR/en-US; pasta inexistente, acesso negado, seleção alternativa, restauro após reinício, arquivos `.md` preexistentes |
+| DT-19 — confirmação | Pasta com `.md` preexistente na raiz no primeiro acesso: aceitar, escolher outra pasta, cancelar, pasta vazia, subdiretórios ignorados e não modificação dos arquivos |
 | Troca de pasta | Escolha de manter, escolha de migrar, cancelamento, arquivos de mesmo nome, edições pendentes e falhas parciais sem perda silenciosa |
 
 | Exportação | conteúdo preservado, destino ocupado, cancelamento e falha parcial |
@@ -358,7 +360,7 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 
 ## 12. Decisões técnicas pendentes — não aprovadas
 
-**Decisões concluídas:** **DT-01 — alternativa B:** para título duplicado, sugerir nome disponível e permitir aceitar ou editar, sem sobrescrever. **DT-17 — alternativa C:** ao trocar a pasta ativa, oferecer escolha entre **manter notas na origem** ou **migrá-las**. Não transportar nem remover conteúdo silenciosamente. Os detalhes técnicos de migração segura serão refinados separadamente.
+**Decisões concluídas:** **DT-01 — alternativa B:** para título duplicado, sugerir nome disponível e permitir aceitar ou editar, sem sobrescrever. **DT-17 — alternativa C:** ao trocar a pasta ativa, oferecer escolha entre **manter notas na origem** ou **migrá-las**, sem movimentação silenciosa. **DT-19 — alternativa B:** confirmar no primeiro acesso o reconhecimento de arquivos `.md` preexistentes na raiz ou escolher outra pasta, sem recursão e sem alterar os arquivos. Detalhes técnicos de migração e persistência dessa confirmação serão refinados separadamente.
 
 | Prioridade | ID | Decisão a tomar | Alternativas a investigar |
 | --- | --- | --- | --- |
@@ -379,16 +381,16 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | Média | DT-15 | Valores finais das chaves GSettings e migração | defaults e versionamento |
 | Média | DT-16 | Mecanismo de execução de I/O e retorno ao contexto GTK | GLib assíncrono / worker controlado |
 | Alta | DT-18 | Permissões e operações na pasta padrão e alternativa com Flatpak | `xdg-documents` + portal; verificar persistência e escrita atômica em FUSE |
-| Alta | DT-19 | Escopo de listagem no diretório Documentos preexistente | incluir `.md` da raiz / escolha explícita / selecionar subpasta |
 | Alta | DT-20 | Detalhes de execução da migração escolhida na DT-17 | copiar e validar / mover e verificar / resolver falhas parciais e colisões |
+| Média | DT-21 | Como lembrar a confirmação inicial da DT-19 por pasta | GSettings com referência à pasta / confirmação por sessão; sem criar índice de notas |
 
-**Recomendação de refinamento:** DT-01 e DT-17 estão aprovadas. Resolver **DT-19 (arquivos `.md` preexistentes)** e **DT-20 (migração segura)** antes dos fluxos de armazenamento; depois decidir DT-02 a DT-04, uma questão de integridade por vez. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
+**Recomendação de refinamento:** DT-01, DT-17 e DT-19 estão aprovadas. Resolver **DT-20 (migração segura)** antes dos fluxos de armazenamento; depois decidir DT-02 a DT-04, uma questão de integridade por vez. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
 
 ## 13. Critérios de conclusão da PREP-02
 
 Para declarar a PREP-02 aprovada, precisamos:
 1. Verificar cobertura de RF-01–RF-26 e RNF-01–RNF-16.
-2. Incorporar as DT-01 e DT-17 aprovadas e resolver DT-02–04, DT-19 e DT-20, sem reabrir as ADRs desnecessariamente.
+2. Incorporar as DT-01, DT-17 e DT-19 aprovadas e resolver DT-02–04 e DT-20, sem reabrir as ADRs desnecessariamente.
 3. Estabelecer contratos operacionais de salvamento, renomeação, exclusão, troca de pasta e exportação suficientemente testáveis.
 4. Definir a versão de runtime/SDK e principais dependências durante o planejamento, antes da implementação que delas dependa; considerar a validação de permissões e publicação atômica em pastas selecionadas.
 5. Definir limites verificáveis de acessibilidade e falhas.
