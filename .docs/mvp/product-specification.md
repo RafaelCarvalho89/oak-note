@@ -193,7 +193,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 ### 5.4. Dados, idioma e distribuição
 
 **RF-23 — Exportar notas.** Permitir exportar manualmente todas as notas Markdown a um diretório escolhido.  
-**Aceite:** arquivos exportados são `.md` legíveis; seleção do destino é explícita; cancelamento não altera as notas originais; conflitos e falhas são comunicados; não há sobrescrita silenciosa.
+**Aceite:** **DT-07 aprovada (alternativa B):** copiar todas as notas que puderem ser exportadas, **sem substituir arquivos ocupados no destino**. Em caso de colisão, ignorar somente o arquivo afetado; diante de erro individual recuperável, registrá-lo e continuar com os demais. Ao finalizar ou cancelar, apresentar resultados separados para **exportadas, ignoradas, com falha e não processadas por cancelamento**, sem anunciar resultado parcial como integral. Preservar os originais e o diretório ativo. Cada cópia confirmada deve ser `.md` legível e íntegra; nunca considerar sucesso se a cópia estiver incompleta ou não verificada. Tratar edições locais pendentes e conflitos conforme DT-05/DT-06/DT-02 antes de exportar a revisão esperada. A seleção do destino é explícita por portal, sem elevação de permissões (DT-18).
 
 **RF-24 — Internacionalização.** Disponibilizar interface em português brasileiro e inglês.  
 **Aceite:** textos próprios da interface são localizados com gettext; idioma segue a configuração regional disponível, com fallback definido; textos das anotações não são traduzidos.
@@ -275,9 +275,11 @@ Os RNFs 05 e 06 não estabelecem, nesta etapa, garantias absolutas de durabilida
 5. Ao reabrir, restaura preferências, janela e última nota selecionada quando existente, **sem prometer recuperação de edições descartadas ou de conteúdo perdido em encerramento forçado**.
 
 ### UC-06 — Exportar dados
-1. Usuário solicita exportação de todas as notas.
-2. Escolhe destino no seletor nativo.
-3. Aplicação gera cópias Markdown ou informa conflitos/falhas.
+1. Usuário solicita exportação das notas do diretório ativo e escolhe destino no seletor nativo/portal.
+2. O aplicativo verifica acesso, colisões e existência de edições locais pendentes; resolve estados de salvamento ou conflito conforme DT-02/DT-05/DT-06, sem exportar silenciosamente versão desatualizada.
+3. Copia as notas elegíveis sem sobrescrever destinos ocupados; colisões são **ignoradas** e falhas individuais recuperáveis são registradas sem interromper todas as demais cópias (DT-07).
+4. Verifica os resultados de cada cópia e, ao finalizar ou cancelar, apresenta relatório de **exportadas, ignoradas, com falha e não processadas**, distinguindo conclusão integral de parcial e cancelamento.
+5. Mantém os originais e o diretório ativo inalterados; cópias já concluídas com segurança permanecem no destino mesmo após falha ou cancelamento.
 4. Arquivos originais permanecem intactos.
 
 ### UC-07 — Configurar pasta de notas
@@ -353,7 +355,7 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-11 — Localização e acessibilidade:** percorrer funções essenciais em pt-BR/en-US com teclado, foco visível e teste básico com Orca.
 
-**CA-12 — Exportação:** exportar todas as notas, verificar integridade das cópias e não alterar originais, inclusive em casos de falha/cancelamento.
+**CA-12 — Exportação:** exportar todas as notas elegíveis, verificar integridade das cópias e não alterar originais; destino ocupado é ignorado sem sobrescrita, falha individual recuperável não impede as demais notas e cancelamento mantém as cópias concluídas. O relatório identifica quantidades e arquivos exportados, ignorados, com falha e não processados, sem declarar conclusão integral quando parcial.
 
 **CA-13 — Pasta de notas:** em instalação inicial utilizar a pasta XDG Documentos disponível; selecionar outra pasta, reiniciar e verificar persistência, listagem e escrita no novo destino; simular acesso negado e remoção do diretório sem perda silenciosa.
 
@@ -362,6 +364,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 **CA-15 — Arquivos Markdown preexistentes:** no primeiro acesso a uma pasta com `.md` na raiz e sem confirmação persistida válida, solicitar confirmação; ao aceitar, listá-los sem alterar seu conteúdo e registrar a decisão por diretório (DT-21); ao escolher outra pasta, não abri-los nem modificá-los. Diretórios sem `.md` não exigem confirmação; subpastas não são percorridas.
 
 **CA-22 — Persistência de confirmação por diretório (DT-21):** confirmar pastas A e B, reiniciar e retornar a ambas sem novo diálogo, desde que sua identidade e acesso ainda sejam válidos. Selecionar uma pasta C desconhecida com `.md` exige confirmação própria. Simular registro inválido, diretório removido/recriado ou substituído, autorização do portal revogada e alteração de localização: nenhuma situação permite reconhecer notas silenciosamente apenas por confiar em um registro antigo. A confirmação não cria índice nem altera o conteúdo Markdown.
+
+**CA-23 — Exportação com resultado parcial (DT-07):** preparar três notas e destino com um nome ocupado; comprovar que o existente não é alterado e o demais são exportados. Simular falha de escrita individual e cancelamento durante a cópia: notas exportadas com sucesso continuam disponíveis, arquivos incompletos não contam como sucesso, e o relatório separa exportados, ignorados, erros e não processados. Testar destino igual à origem e edições pendentes, preservando arquivos e evitando cópias destrutivas ou obsoletas.
 
 **Nota de escopo:** a DT-03 rege a **exclusão individual solicitada pelo usuário**. A limpeza de arquivos de origem após uma migração confirmada continua sujeita à DT-20, com política operacional própria a ser refinada.
 
@@ -417,7 +421,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-08 | Semântica de pesquisa (acentos, maiúsculas e correspondência parcial), empates de ordenação | Consistência de uso | PREP-02 |
 | QA-09 | Intervalo e condições de transparência aceitáveis, popovers/diálogos e contraste mínimo | Acessibilidade visual | PREP-02 |
 | QA-10 | Dimensões mínimas reais e composição adaptativa | Usabilidade | PREP-02 |
-| QA-11 | Política de colisões e resultados parciais na exportação | Proteção das cópias | PREP-02 |
+| QA-11 | **DT-07 aprovada:** continuar após colisões e falhas individuais recuperáveis, sem sobrescrever; relatar exportados, ignorados, erros e cancelamentos. Detalhar cópia segura, resultados incertos, destino igual à origem e erros que impedem continuar | Proteção das cópias | PREP-02 |
 | QA-12 | Detalhes de GSettings, esquema de versão, valores padrão e fallback de idioma | Persistência | PREP-02 |
 | QA-13 | Versão final suportada do SDK/runtime Flatpak, permissões e metadados definitivos | Distribuição | PREP-02 |
 | QA-14 | Mapeamento final dos atalhos internos e orientação do atalho no GNOME | Acessibilidade | PREP-02 |
@@ -447,6 +451,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-09 | Detectar alterações externas com metadados + hash do conteúdo em memória, comparados sob demanda antes de operações destrutivas; sem monitoramento contínuo obrigatório |
 | DT-18 | Flatpak: acesso estático somente a XDG Documentos; portal para pastas alternativas, com validação efetiva das operações e autorização persistente; sem ampliação automática de permissões |
 | DT-21 | Confirmar reconhecimento de `.md` por diretório e persistir o consentimento em GSettings; revisitar pasta válida sem novo diálogo; sem índice de notas nem autorização automática de portal |
+| DT-07 | Exportar as notas possíveis sem sobrescrever nomes ocupados; continuar após falhas individuais recuperáveis e relatar sucesso, itens ignorados, erros, cancelamento e parciais |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -454,6 +459,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 22 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 23 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
