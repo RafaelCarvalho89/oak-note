@@ -141,7 +141,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** cancelar mantém a nota intacta; confirmar, após tratar alterações pendentes e verificar que o arquivo ainda corresponde à nota selecionada, solicita sua movimentação para a lixeira. Somente após confirmação de sucesso da operação a nota deixa a lista. Se a lixeira estiver indisponível, a operação não for suportada ou falhar, o aplicativo informa o erro, mantém a nota e **não executa exclusão definitiva como alternativa automática**. Arquivos externos modificados desde a leitura são tratados conforme DT-02; nenhuma outra nota é excluída.
 
 **RF-07 — Pesquisar por título.** Filtrar a lista pelo título.  
-**Aceite:** uma pesquisa mostra apenas notas correspondentes ao título; conteúdo textual que não esteja no título não é pesquisado; limpar a pesquisa restaura a listagem.
+**Aceite:** **DT-12 aprovada (alternativa B):** pesquisar por **trecho do título** com normalização Unicode canônica e *case folding* aplicados tanto ao texto da consulta quanto aos títulos. Diferenças de caixa e de representação Unicode canonicamente equivalente não impedem correspondência, mas **acentos distintos são significativos**: `café` e `cafe` não se equivalem. Não pesquisar no conteúdo dos arquivos; consulta vazia restaura a lista integral. A pesquisa não altera nomes físicos, títulos ou conteúdo.
 
 **RF-08 — Ordenar notas.** Mostrar as notas da mais recentemente modificada para a menos recente.  
 **Aceite:** a listagem usa os metadados de modificação disponíveis no filesystem; alterações salvas podem mudar a posição da nota; empates e metadados indisponíveis têm tratamento determinístico a definir.
@@ -184,7 +184,7 @@ Os critérios abaixo são condições de aceitação do produto. Não prescrevem
 **Aceite:** ao reabrir, dimensões e maximização válidas são recuperadas e o layout se adapta ao espaço disponível (DT-11); a preferência manual da barra lateral é restaurada independentemente de recolhimentos automáticos anteriores. Se a nota anterior não existir, a aplicação abre sem erro impeditivo; a posição fica a cargo do GNOME. Os limites mínimos de largura/altura e o ponto de quebra devem ser validados com GNOME/Wayland, pt-BR/en-US, escala de interface e acessibilidade, sem fixar números não testados.
 
 **RF-20 — Atalhos internos.** Oferecer ações essenciais por teclado.  
-**Aceite:** criar nota, pesquisar, recolher a barra lateral e acessar preferências têm atalhos internos documentados e funcionais quando a janela possui foco. Mapeamento sugerido: `Ctrl+N`, `Ctrl+F`, `F9`, `Ctrl+,` e `Esc` (a confirmar quanto a conflitos).
+**Aceite:** **DT-12 aprovada (alternativa B):** adotar `Ctrl+N` para criar nota, `Ctrl+F` para focar a busca de títulos, `F9` para alternar a **preferência manual** da barra lateral (DT-11), `Ctrl+,` para abrir preferências e `Esc` para encerrar/limpar a interação de busca **conforme o foco**, sem descartar edições ou fechar diálogos críticos silenciosamente. Atalhos são internos à janela, documentados, disponíveis por teclado e compatíveis com convenções GNOME; conflitos com atalhos nativos/edição GTK devem ser verificados na integração, sem captura global.
 
 **RF-21 — Acesso rápido via GNOME.** Permitir que o usuário configure externamente um atalho para abrir a aplicação.  
 **Aceite:** o aplicativo pode ser iniciado normalmente pelo comando de instalação e a documentação explica a configuração do atalho no GNOME. Não exige registrar um hotkey global.
@@ -347,7 +347,7 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 
 **CA-19 — Troca e encerramento seguros (DT-06):** com nota alterada, tentar trocar ou fechar e verificar tentativa de salvar antes de prosseguir. Simular erro antes da publicação, resultado incerto e falha de sync após publicação: exibir **tentar novamente**, **cancelar** ou **descartar com confirmação específica**, preservando a edição ao cancelar e sem informar falsamente salvamento seguro. Com conflito externo, manter opções da DT-02. Com várias notas pendentes, não concluir fechamento com descarte silencioso. Confirmar que encerrar à força não oferece garantia de recuperação.
 
-**CA-07 — Navegação:** criar várias notas, pesquisar pelo título, ordenar por modificação e recolher/expandir a barra lateral sem perda de edição; validar que o recolhimento automático por largura não modifica a preferência manual da lateral.
+**CA-07 — Navegação:** criar várias notas, pesquisar pelo título, ordenar por modificação e recolher/expandir a barra lateral sem perda de edição; validar que o recolhimento automático por largura não modifica a preferência manual da lateral. A busca consulta apenas títulos e segue normalização/case folding da DT-12.
 
 **CA-08 — Aparência:** alternar Sistema/Claro/Escuro, variar transparência inicial de 0–70% e reiniciar; confirmar persistência, fundo opaco em 0%, transparência seletiva no cabeçalho, editor e lateral, opacidade dos textos e controles, e ausência de click-through.
 
@@ -374,6 +374,8 @@ A apresentação exata (toast, indicador, diálogo ou banner) será definida na 
 **CA-25 — Transparência e legibilidade (DT-10):** testar 0%, valores intermediários e 70% nos temas Claro/Escuro, sobre fundos externos claros, escuros e visuais complexos; conferir que só fundos do cabeçalho, editor e lateral são translúcidos e que diálogos, menus, popovers e preferências mantêm fundos opacos. Validar legibilidade de texto, foco, cursor, seleção e ícones; sem click-through. Caso 70% comprometa acessibilidade, reduzir o limite máximo documentando o resultado do teste, sem prometer contraste universal sobre qualquer conteúdo externo.
 
 **CA-26 — Layout adaptativo e lateral manual (DT-11):** alternar larguras ampla/estreita/ampla com lateral manualmente visível e manualmente oculta; em largura estreita, editor permanece utilizável e lateral se recolhe automaticamente, com navegação acessível por controle e teclado. Ao voltar à largura ampla, restaurar exclusivamente a preferência manual (não o último recolhimento automático). Testar maximização, reinício, notas com edições não salvas, escala/idioma pt-BR/en-US e controles acessíveis. Documentar largura/altura mínima e limiar de adaptação após testes reais, sem pressupor números.
+
+**CA-27 — Busca Unicode e atalhos (DT-12):** pesquisar `projeto` deve encontrar `Projeto Oak`; `CAFÉ` deve encontrar `Café`; `cafe` não deve corresponder a `Café`; formas Unicode canonicamente equivalentes e diferenças de caixa devem produzir o mesmo resultado. Verificar correspondência por trecho, consulta vazia, título sem alteração e nenhuma busca pelo corpo da nota. Testar `Ctrl+N`, `Ctrl+F`, `F9`, `Ctrl+,` e `Esc` com foco no editor, busca e diálogos; não capturar atalhos globais, não descartar buffer e não violar o estado manual/responsivo da lateral (DT-11).
 
 **Nota de escopo:** a DT-03 rege a **exclusão individual solicitada pelo usuário**. A limpeza de arquivos de origem após uma migração confirmada continua sujeita à DT-20, com política operacional própria a ser refinada.
 
@@ -426,13 +428,13 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | QA-05 | **DT-02 aprovada:** recarregar, salvar local como nova nota ou cancelar; **DT-09 aprovada:** comparar metadados + hash em memória antes de operações destrutivas. Refinar algoritmo, fingerprint indisponível, TOCTOU e arquivo ausente/renomeado | Proteção dos dados | PREP-02 |
 | QA-06 | **DT-03 aprovada:** enviar nota à lixeira após confirmação; se indisponível ou falhar, informar erro sem excluir definitivamente. Detalhar suporte GIO/Flatpak e validações pré-exclusão | Segurança do usuário | PREP-02 |
 | QA-07 | **DT-04 aprovada:** instância única por sessão, ativações encaminhadas à janela existente, operações internas serializadas. Refinar limites entre sessões/instalações, arquivos ausentes, symlinks e concorrência externa | Robustez | PREP-02 |
-| QA-08 | Semântica de pesquisa (acentos, maiúsculas e correspondência parcial), empates de ordenação | Consistência de uso | PREP-02 |
+| QA-08 | **DT-12 aprovada:** busca parcial de títulos com normalização Unicode canônica + case folding, sem remover acentos; testar caracteres especiais e equivalência canônica. **DT-13 pendente:** empates de ordenação | Consistência de uso | PREP-02 |
 | QA-09 | **DT-10 aprovada:** transparência inicial de 0–70% nos fundos da janela principal e superfícies auxiliares opacas; validar contraste/legibilidade real, reduzindo máximo se necessário; detalhar testes e critérios visuais verificáveis | Acessibilidade visual | PREP-02 |
 | QA-10 | **DT-11 aprovada:** recolhimento automático da barra lateral em janela estreita e prioridade ao editor, independente do estado manual persistido; validar mínimo de largura/altura, breakpoint, navegação/teclado, escala e locais pt-BR/en-US | Usabilidade | PREP-02 |
 | QA-11 | **DT-07 aprovada:** continuar após colisões e falhas individuais recuperáveis, sem sobrescrever; relatar exportados, ignorados, erros e cancelamentos. Detalhar cópia segura, resultados incertos, destino igual à origem e erros que impedem continuar | Proteção das cópias | PREP-02 |
 | QA-12 | Detalhes de GSettings, esquema de versão, valores padrão e fallback de idioma | Persistência | PREP-02 |
 | QA-13 | **DT-08 aprovada:** GNOME Platform/SDK 51 e Rust stable não fixado; exigir diagnóstico do compilador e validação da extensão SDK, dependências e funcionamento no host. Metadados definitivos e matriz de compatibilidade devem ser concluídos antes de M1/release | Distribuição | PREP-02 |
-| QA-14 | Mapeamento final dos atalhos internos e orientação do atalho no GNOME | Acessibilidade | PREP-02 |
+| QA-14 | **DT-12 aprovada:** `Ctrl+N`, `Ctrl+F`, `F9`, `Ctrl+,` e `Esc` contextual; testar conflitos de foco/GTK e documentação de atalho GNOME externo | Acessibilidade | PREP-02 |
 | QA-15 | **DT-17/DT-20 aprovadas:** oferecer manter ou migrar; migração por cópia integral e verificação antes de ativar destino, com confirmação adicional antes da remoção. Detalhar recuperação, falhas parciais e concorrência externa | Integridade e experiência | PREP-02 |
 | QA-16 | **DT-18 aprovada:** XDG Documentos + portal sem ampliação automática; **DT-21 aprovada:** persistir confirmações por diretório no GSettings, sem índice de notas. Detalhar identidade/revalidação do diretório, registros inválidos e distinção de permissões do portal | Acesso a dados | PREP-02 |
 
@@ -463,6 +465,7 @@ Os pontos abaixo **não foram decididos** pelas ADRs ou exigem detalhamento de c
 | DT-08 | GNOME Platform/SDK 51 + Rust stable sem pin de versão; registrar versões efetivas e validar builds, compatibilidade e limitações de reprodutibilidade |
 | DT-10 | Transparência inicial 0–70% nos fundos do cabeçalho, editor e lateral; textos/controles opacos e fundos de diálogos, menus, popovers e preferências opacos; reduzir máximo se testes exigirem |
 | DT-11 | Adaptar layout por largura com recolhimento automático da lateral, priorizando editor; manter preferência manual independente, sem fixar dimensões e limiar antes dos testes |
+| DT-12 | Busca parcial somente em títulos com Unicode canônico + case folding, mantendo acentos significativos; atalhos internos GNOME `Ctrl+N`, `Ctrl+F`, `F9`, `Ctrl+,`, `Esc` contextual, sem captura global |
 
 As decisões do briefing 01–21 completam o contexto de produto e distribuição. Este documento não substitui os futuros registros detalhados das ADRs em `.docs/architecture/`.
 
@@ -470,6 +473,6 @@ As decisões do briefing 01–21 completam o contexto de produto e distribuiçã
 
 **Situação atual:** rascunho apresentado para revisão. Não está aprovado como baseline enquanto existirem correções solicitadas ou a revisão final da PREP-01 não tiver ocorrido.
 
-**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 26 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
+**Condição para encerrar a PREP-01:** confirmar que os 27 RFs, 16 RNFs, 27 critérios transversais e os limites de escopo refletem integralmente o produto pretendido, e identificar as lacunas a resolver na PREP-02.
 
 **Próximo entregável:** `.docs/mvp/technical-specification.md` (PREP-02), somente depois de revisar esta especificação.
