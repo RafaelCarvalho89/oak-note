@@ -20,82 +20,92 @@ Em 2026-11-16, a `main` do repositório `RafaelCarvalho89/oak-note` foi verifica
 | 02 | Markdown puro, sem front matter ou índice auxiliar; título e modificação derivados do filesystem; sem ID interno persistente e sem garantia da data histórica de criação. |
 | 03 | Autosave com debounce, arquivo temporário no mesmo diretório, substituição atômica quando suportada, controle de revisões/concorrência e erros explícitos. |
 | 04 | Esquema GSettings único, separação lógica entre preferências e estado operacional. |
-| 05 | Monólito modular de um crate, domínio independente, abstrações seletivas nas fronteiras úteis. |
+| 05 | Monólito modular de um crate, domínio independente, abstrações seletivas nas fronteiras úteis; **organização de arquivos feature-based** como diretriz organizacional adicional. |
 | 06 | Application ID definitivo `io.github.rafaelcarvalho89.oaknote`, Flatpak com runtime GNOME versionado e atualizações controladas. |
 | 07 | Transparência em **todos os fundos da janela principal**, incluindo cabeçalho, editor e barra lateral; textos e controles opacos. |
 
-**Baseline adicional:** Debian/GNOME/Wayland; Rust + GTK4 + libadwaita; POC validada manualmente pelo responsável; sobreposição exclusivamente manual pelo GNOME; notas offline; localização pt-BR/en-US; GitHub Releases para Flatpak.
+**Baseline adicional:** Debian/GNOME/Wayland; Rust + GTK4 + libadwaita; POC validada manualmente pelo responsável; sobreposição exclusivamente manual pelo GNOME; notas offline em **Documentos por padrão** com pasta configurável; localização pt-BR/en-US; GitHub Releases para Flatpak. **DT-01 aprovada:** sugerir nome alternativo editável em colisões. **Diretriz transversal:** os projetos de produção seguem organização feature-based; aplicar princípios hexagonais, SOLID, YAGNI e DRY somente de forma útil e compatível com o contexto.
 
-## 3. Organização do projeto e direção das dependências
+## 3. Organização feature-based e arquitetura modular
 
-### 3.1. Estrutura proposta (não implantada)
+A **organização dos arquivos é feature-based**: agrupar código por capacidade do produto, não por categoria técnica global. A arquitetura define **dependências, contratos e responsabilidades** entre partes do sistema; não é sinônimo de uma árvore de diretórios `domain/application/infrastructure/ui`.
+
+### 3.1. Estrutura de referência (não implantada)
 
 ```text
 oak-note/
 ├── .docs/
-│   ├── architecture/                 # ADRs consolidadas futuramente
+│   ├── architecture/
 │   └── mvp/
 │       ├── product-specification.md
 │       └── technical-specification.md
 ├── src/
-│   ├── main.rs                       # inicialização/composição
-│   ├── domain/
-│   │   ├── mod.rs
-│   │   ├── note.rs
-│   │   └── errors.rs
-│   ├── application/
-│   │   ├── mod.rs
-│   │   ├── note_service.rs
-│   │   ├── note_repository.rs        # trait seletiva
-│   │   └── save_coordinator.rs
-│   ├── infrastructure/
-│   │   ├── mod.rs
-│   │   ├── filesystem.rs
-│   │   ├── settings.rs
-│   │   └── diagnostics.rs
-│   └── ui/
+│   ├── main.rs                   # inicialização
+│   ├── app.rs                    # composição da aplicação
+│   ├── features/
+│   │   ├── notes/
+│   │   │   ├── mod.rs
+│   │   │   ├── model.rs         # regras essenciais da nota
+│   │   │   ├── service.rs       # casos de uso
+│   │   │   ├── repository.rs    # porta seletiva, se necessária
+│   │   │   ├── filesystem.rs    # adaptador de arquivos
+│   │   │   ├── save.rs          # coordenação de salvamento
+│   │   │   └── ui/              # editor e lista
+│   │   ├── storage/
+│   │   │   ├── mod.rs
+│   │   │   └── settings.rs      # pasta de notas selecionada
+│   │   ├── appearance/
+│   │   │   ├── mod.rs
+│   │   │   └── ui.rs            # tema/transparência
+│   │   └── export/
+│   │       ├── mod.rs
+│   │       └── service.rs
+│   └── platform/                # somente infraestrutura reutilizada
 │       ├── mod.rs
-│       ├── window.rs
-│       ├── note_list.rs
-│       ├── editor.rs
-│       ├── appearance.rs
-│       └── preferences.rs
-├── data/                             # schema GSettings, desktop, AppStream, ícones, traduções
+│       └── settings.rs          # acesso compartilhado a GSettings, se útil
+├── data/                        # schema, desktop, AppStream, traduções
 ├── flatpak/
 ├── tests/
 ├── Cargo.toml
 └── Cargo.lock
 ```
 
-Os diretórios são indicativos. O desenho aprovado exige **um crate**, não que cada arquivo acima exista. Evitar modularização sem caso de uso.
+A estrutura é uma **referência mínima adaptável**, não uma obrigação de criar todos os arquivos, features, traits ou pastas no primeiro commit. Uma capacidade pequena pode residir em um único módulo; dividir por submódulos apenas quando necessário. Por exemplo, gerenciamento de notas, edição, listagem e pesquisa podem permanecer juntos em `features/notes/`.
 
-### 3.2. Limites de módulos
+### 3.2. Limites arquiteturais, sem imposição de pastas por camada
 
-- **domain:** `Note`, regras de título/caminho e erros próprios; não importa `gtk`, `adw`, `gio::Settings` nem manipula arquivos.
-- **application:** coordena casos de uso, seleção/edição, revisão de conteúdo, estado de salvamento, conflitos, exportação e transições entre notas; depende de domínio e abstrações selecionadas.
-- **infrastructure:** implementação concreta do repositório de arquivos, operações de I/O seguro, persistência de preferências e logs; não conhece widgets.
-- **ui:** renderiza estados, recebe eventos GTK4 e chama casos de uso; gerencia CSS, libadwaita e interação do usuário, sem abrir/gravar notas diretamente.
-- **composition root:** constrói dependências concretas e conecta sinais da interface.
+- **Núcleo de domínio:** modelo de nota e regras relevantes; independente de GTK4, libadwaita e operações concretas de filesystem.
+- **Casos de uso:** coordenam edição, seleção, salvamento, renomeação, exclusão e troca do diretório ativo.
+- **Adaptadores:** filesystem, GSettings e portals GTK/GIO implementam somente contratos necessários.
+- **Interface:** widgets invocam casos de uso e mostram resultados; não gravam notas diretamente.
+- **Composição:** `main.rs`/`app.rs` ligam implementações concretas aos consumidores.
 
-**Regra de dependência:** `domain` não depende de `application`, `infrastructure` ou `ui`. Os contratos usados pelo núcleo são definidos próximos aos consumidores, não duplicados automaticamente.
+Essas responsabilidades podem estar **dentro da mesma feature**, separadas em módulos apenas quando isso simplificar a implementação. O núcleo não importa bibliotecas de UI. Interfaces abstratas são empregadas apenas quando testabilidade, substituição real ou controle de efeitos as justificarem.
 
-### 3.3. Abstração seletiva proposta
+### 3.3. Hexagonal, SOLID, YAGNI e DRY: critérios de aplicação
 
-Uma trait `NoteRepository` é candidata, cobrindo operações sem carregar detalhes GTK:
+1. **Hexagonal no essencial:** usar uma porta como `NoteRepository` para isolar filesystem do salvamento e dos testes; não reproduzir mecanicamente portas/adaptadores para cada widget ou configuração.
+2. **SOLID contextual:** adotar responsabilidades coesas, dependências na direção correta e contratos pequenos; não multiplicar tipos para perseguir abstrações especulativas.
+3. **YAGNI:** não criar extensões para bancos de dados, sincronização ou outros provedores ainda fora do escopo.
+4. **DRY:** eliminar duplicação de regras de domínio e persistência, mas permitir repetição local simples quando abstraí-la acrescentaria acoplamento.
+5. **Modularidade prática:** evitar dependências circulares entre features; promover código a `platform/` somente quando compartilhamento concreto justificar.
+6. **Um único crate:** preservar decisão de monólito modular Rust, sem workspace ou multi-crate obrigatório.
+
+### 3.4. Contrato de armazenamento seletivo
+
+Uma trait `NoteRepository` é candidata, com operações orientadas à pasta ativa:
 
 ```text
-list_notes() -> Result<list<NoteMetadata>, RepositoryError>
-read_note(path) -> Result<NoteSnapshot, RepositoryError>
-create_note(title, content) -> Result<NoteSnapshot, RepositoryError>
-replace_if_unchanged(path, expected_fingerprint, content) -> Result<NewFingerprint, RepositoryError>
-rename_if_available(source, target, expected_fingerprint) -> Result<NoteSnapshot, RepositoryError>
-delete_note(path, expected_fingerprint) -> Result<(), RepositoryError>
-export_notes(destination) -> Result<ExportReport, RepositoryError>
+list_notes(directory) -> Result<list<NoteMetadata>, RepositoryError>
+read_note(directory, path) -> Result<NoteSnapshot, RepositoryError>
+create_note(directory, title, content) -> Result<NoteSnapshot, RepositoryError>
+replace_if_unchanged(directory, path, expected_fingerprint, content) -> Result<NewFingerprint, RepositoryError>
+rename_if_available(directory, source, target, expected_fingerprint) -> Result<NoteSnapshot, RepositoryError>
+delete_note(directory, path, expected_fingerprint) -> Result<(), RepositoryError>
+export_notes(directory, destination) -> Result<ExportReport, RepositoryError>
 ```
 
-**Pseudocontrato, não API Rust final.** `expected_fingerprint` representa o estado observado, e não uma identidade persistente da nota. A camada de aplicação coordena o salvamento; filesystem executa operações condicionais seguras conforme disponibilidade do SO.
-
-Uma implementação real de filesystem e um repositório falso de teste podem satisfazer a interface. Não criar uma trait só para encapsular GSettings sem benefício mensurável.
+**Pseudocontrato, não API Rust final.** `expected_fingerprint` é um estado observado, não identidade persistente. A referência a `directory` pode ser capturada por um objeto de repositório em vez de parâmetro repetido; decidir durante implementação sem romper as garantias. Não é obrigatório criar trait para configurações, seletor de diretório ou aparência.
 
 ## 4. Modelo de dados e convenções
 
@@ -113,17 +123,31 @@ NoteSnapshot
 
 **Nota:** não existe `note_id` persistente; `revision` é somente estado efêmero interno da sessão e não é gravado no Markdown.
 
-### 4.2. Diretório gerenciado
+### 4.2. Diretório de armazenamento configurável
 
-**Proposta:** utilizar `$XDG_DATA_HOME/oak-note/notes/` para execução fora de Flatpak, resolvido pelas bibliotecas XDG/GIO conforme o ambiente. Dentro do Flatpak, preferir o local de dados privado disponibilizado para a aplicação, sem presumir equivalência literal com um caminho no host.
+**Decisão de produto aprovada:** a pasta padrão de notas é o diretório **Documentos** do usuário, resolvido como diretório especial XDG, sem caminho hardcoded. Por exemplo, pode ser `/home/<USER>/Documentos` em uma sessão pt-BR. **Não criar implicitamente subpasta Oak Note**: o diretório ativo é a própria pasta Documentos, a menos que o usuário escolha outra.
 
-Ao iniciar, resolver caminho de dados, criar o diretório quando necessário com permissões apropriadas e lidar com diretório indisponível com erro apresentado. Não varrer indiscriminadamente o diretório pessoal.
+- Consultar a localização de `GLib.UserDirectory.DIRECTORY_DOCUMENTS` ou API XDG equivalente, verificando retorno ausente, caminho inexistente e permissões.
+- Permitir selecionar um diretório alternativo nas Preferências, usando seletor de pastas integrado ao GTK/GIO e ao portal onde necessário.
+- Persistir a seleção no esquema único de GSettings (ADR-04), sem salvar o conteúdo das notas no GSettings.
+- Operações de listar, criar, editar, renomear, apagar e exportar consultam explicitamente a pasta ativa.
+- Não considerar a área privada do Flatpak o destino padrão das notas; dados operacionais internos e configurações podem continuar em áreas próprias.
+- Se o diretório padrão ou escolhido estiver indisponível, informar e solicitar intervenção, **sem redirecionar silenciosamente** e sem apagar/transportar arquivos.
+- A pasta Documentos pode conter `.md` criados fora do Oak Note. **É obrigatório definir política para arquivos preexistentes e escopo de listagem**, evitando tocar arquivos de terceiros sem ação do usuário (DT-19).
+- **Troca de diretório não significa migração aprovada**. Definir se mantém arquivos no destino anterior, move com confirmação, ou oferece escolha; tratar edições pendentes e conflitos de nomes (DT-17).
+
+**Flatpak:** a permissão estática `--filesystem=xdg-documents` é candidata prática para acesso transparente à pasta Documentos configurada pelo usuário; porém permite acesso amplo **dentro de Documentos**, e exige revisão de mínimo privilégio. Para locais arbitrários, priorizar o portal de seleção de pasta com acesso autorizado pelo usuário; verificar persistência do acesso entre sessões e se criar/renomear/substituir arquivos com segurança é suportado no caminho devolvido pelo portal (DT-18). Não conceder `--filesystem=home` somente para acomodar a escolha de pasta. As garantias de escrita atômica podem variar no caminho FUSE do portal e precisam ser validadas experimentalmente.
+
+Referências oficiais:
+- https://docs.gtk.org/glib/func.get_user_special_dir.html
+- https://docs.flatpak.org/en/latest/sandbox-permissions.html
+- https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.FileChooser.html
 
 ### 4.3. Título e nome físico (QA-01/QA-02)
 
 **Proposta para avaliação:** derivar nome a partir de título legível, preservando Unicode válido, normalizando espaços periféricos, impedindo `/`, NUL, `.`, `..`, títulos vazios e nomes reservados pela política do produto. Manter extensão `.md` minúscula como convenção; preservar legibilidade em vez de sempre aplicar slug ASCII.
 
-**Não definido:** política de colisões — rejeitar com aviso, sugerir título alternativo ou acrescentar sufixo automaticamente. Em qualquer alternativa, *não substituir arquivo existente*. A regra deve ser decidida antes de M2.
+**DT-01 aprovada — alternativa B:** em caso de colisão, **sugerir nome alternativo disponível** (ex.: `Ideias (2).md`), com possibilidade de aceitar ou editar antes de confirmar. **Nunca substituir arquivo existente**. A normalização de caracteres, extensão, casefold, números de sufixo e o nome inicial sugerido ainda exigem detalhamento.
 
 Listar somente arquivos regulares apropriados do diretório de notas. Definir política sobre symlinks e arquivos não regulares antes do desenvolvimento; não presumir que entradas externas sejam seguras.
 
@@ -183,7 +207,7 @@ Quando houver conflito, o sistema preservará a edição em memória e deverá d
 
 | Caso de uso | Camada de aplicação | Infraestrutura | Erro/contingência |
 | --- | --- | --- | --- |
-| Criar | Validar título, coordenar seleção e salvar | Criação sem sobrescrita | Nome duplicado, I/O |
+| Criar | Validar título, sugerir alternativa editável em colisão, coordenar seleção e salvar | Criação sem sobrescrita na pasta ativa | Nome duplicado, I/O |
 | Listar | Ordenar e filtrar metadados | Enumeração controlada | Entrada inválida/inacessível |
 | Selecionar | Proteger edição pendente anterior | Leitura condicionada | Arquivo removido |
 | Editar | Atualizar revisão, agendar autosave | Nenhuma escrita direta pela UI | Falha posterior de gravação |
@@ -191,6 +215,7 @@ Quando houver conflito, o sistema preservará a edição em memória e deverá d
 | Excluir | Confirmar, verificar revisão e remover | Operação condicionada | Cancelamento/falha |
 | Buscar | Filtrar notas carregadas por título | Não exige índice | Nenhum resultado |
 | Exportar | Coordenar lista e progresso | Cópia `.md` com destino do usuário | Parcial, colisões, permissões |
+| Alterar diretório | Validar pasta escolhida e estado pendente; aplicar política de troca ainda a definir | Seleção via portal e validação de leitura/gravação | Pasta indisponível, autorização, migração incerta |
 
 ### 6.1. Exclusão (QA-06)
 
@@ -206,7 +231,7 @@ Quando houver conflito, o sistema preservará a edição em memória e deverá d
 
 Janela principal com barra de cabeçalho, lista lateral recolhível e editor `GtkTextView` simples, sem renderização Markdown. Preferências usam janela libadwaita nativa. Escolhas de UI nativa devem ser compatíveis com versões de SDK selecionadas.
 
-A UI apresenta estados de notas e salvamento, confirma exclusão, informa conflito e abre seletor de diretório na exportação. A navegação por teclado é requisito, não adição opcional.
+A UI apresenta estados de notas e salvamento, confirma exclusão, informa conflito, **exibe a pasta ativa e permite alterá-la nas preferências**, além de abrir seletor de diretório na exportação. A navegação por teclado é requisito, não adição opcional.
 
 ### 7.2. Concorrência com o loop principal
 
@@ -244,6 +269,7 @@ Usar gettext para textos próprios da interface em pt-BR e inglês, com fallback
 | Chave candidata | Tipo conceitual | Valor inicial sugerido | Papel |
 | --- | --- | --- | --- |
 | `color-scheme` | enum/string | `system` | Preferência |
+| `notes-directory` | URI/caminho GFile serializável (formato final a decidir) | diretório especial XDG Documentos | Preferência |
 | `background-transparency` | inteiro 0–70 | 0 | Preferência |
 | `sidebar-visible` | boolean | true | Preferência |
 | `window-width` | inteiro positivo | 800 | Estado |
@@ -255,6 +281,7 @@ Usar gettext para textos próprios da interface em pt-BR e inglês, com fallback
 - Chaves versionadas e distribuídas com os arquivos de instalação.
 - O domínio não depende da API GSettings.
 - Valores inválidos, referências perdidas e configurações antigas recebem tratamento seguro.
+- A pasta escolhida deve ser persistida sem depender de um caminho hardcoded no host; quando obtida via portal, verificar validade do identificador/caminho e autorização ao reiniciar.
 - Persistência precisa ser testada tanto na execução local quanto dentro do Flatpak.
 
 ## 9. Flatpak, empacotamento e diretórios
@@ -272,7 +299,8 @@ Usar gettext para textos próprios da interface em pt-BR e inglês, com fallback
 ### 9.2. Permissões
 
 - Começar com Wayland e mínimo necessário ao uso local.
-- Notas em área privada da aplicação; não conceder acesso irrestrito a `home` somente por conveniência.
+- **Notas em XDG Documentos por padrão:** avaliar permissão de escrita `xdg-documents` no Flatpak para acesso inicial, reconhecendo seu alcance sobre a pasta inteira; não conceder acesso irrestrito a `home` somente por conveniência.
+- **Pasta alternativa:** seleção explícita via GTK FileDialog/portal, verificando autorização persistente para listar/criar/renomear/gravar e delete; validar sem presumir garantias nativas de atomicidade em FUSE.
 - Exportação por portal de seleção de arquivos/diretórios com permissões efetivas verificadas.
 - Sem telemetria, acesso à rede ou serviços externos como requisito funcional.
 - Inspecionar permissões reais do pacote e overrides do ambiente de testes.
@@ -293,7 +321,9 @@ Pipeline proposto: `cargo fmt --check`, `cargo clippy`, `cargo test`, verificaç
 | Filesystem | escrita temporária, substituição, falha simulada, arquivo removido, acesso negado |
 | Conflito | modificação externa, destino ocupado, rename/delete concorrentes |
 | Busca/ordem | correspondência por título, mudança de mtime e empates |
-| Preferências | defaults, leitura/atualização, restauração e entrada inválida |
+| Preferências | defaults, leitura/atualização, restauração, pasta de notas e entrada inválida |
+| Diretório de notas | XDG Documentos em instalações pt-BR/en-US; pasta inexistente, acesso negado, seleção alternativa, restauro após reinício, arquivos `.md` preexistentes |
+
 | Exportação | conteúdo preservado, destino ocupado, cancelamento e falha parcial |
 
 Os testes de integração de filesystem devem usar diretórios isolados e não depender do diretório real do usuário.
@@ -306,7 +336,7 @@ Os testes de integração de filesystem devem usar diretórios isolados e não d
 - Layout compacto, redimensionamento, maximização e restauração.
 - Navegação por teclado, atalhos, Orca e mensagens de erro.
 - GNOME manual “Sempre no topo”, funcionamento quando outra janela está ativa.
-- Instalação/execução Flatpak e acessos autorizados, inclusive exportação via portal.
+- Instalação/execução Flatpak e acessos autorizados, inclusive leitura/gravação em XDG Documentos, escolha de pasta externa e exportação via portal.
 
 ### 10.3. Logs e privacidade
 
@@ -316,19 +346,22 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 
 | Requisitos de produto | Módulos/contratos predominantes | Teste principal |
 | --- | --- | --- |
-| RF-01–08 | domain + application + NoteRepository + lista | unitário e integração de filesystem |
-| RF-09–14 | SaveCoordinator + repository + estados UI | unitário, integração e falhas |
-| RF-15–22 | ui + infrastructure/settings | teste manual de interface |
-| RF-23 | application + infrastructure + portal | integração e teste manual |
-| RF-24 | ui + gettext | checagem de tradução e teste manual |
+| RF-01–08 | feature `notes` + porta de repositório seletiva | unitário e integração de filesystem |
+| RF-09–14 | feature `notes` (SaveCoordinator + adaptador) | unitário, integração e falhas |
+| RF-15–22 | features `notes`/`appearance`/`storage` + GSettings | teste manual de interface |
+| RF-23 | feature `export` + portal | integração e teste manual |
+| RF-24 | feature de UI/localização + gettext | checagem de tradução e teste manual |
 | RF-25 | flatpak + CI | build, instalação e smoke test |
+| RF-26 | feature de storage + GSettings + portal | seleção, persistência e permissões no Flatpak |
 | RNF-01–16 | transversal, conforme área | matriz de testes e revisão |
 
 ## 12. Decisões técnicas pendentes — não aprovadas
 
+**Decisão concluída:** **DT-01 — alternativa B**. Quando houver título duplicado, sugerir nome disponível, permitir aceitar ou editar e não sobrescrever o arquivo existente. Detalhes de normalização Unicode e composição da sugestão serão definidos na execução das histórias, preservando esse comportamento.
+
 | Prioridade | ID | Decisão a tomar | Alternativas a investigar |
 | --- | --- | --- | --- |
-| Crítica | DT-01 | Normalização de títulos, Unicode e colisões | rejeitar colisão / oferecer sugestão / sufixar |
+
 | Crítica | DT-02 | Resolução de conflitos externos sem sobrescrita | bloquear e oferecer recarregar/salvar como / cópia |
 | Crítica | DT-03 | Exclusão de nota | lixeira / exclusão definitiva com confirmação |
 | Crítica | DT-04 | Proteção contra concorrência de processos e operações filesystem | instância única / coordenação operacional / bloqueio e detecção |
@@ -344,16 +377,19 @@ Eventos de erro e operação podem ser estruturados em logs locais. **Não regis
 | Média | DT-14 | Política de arquivos inesperados e symlinks | ignorar e notificar / validar |
 | Média | DT-15 | Valores finais das chaves GSettings e migração | defaults e versionamento |
 | Média | DT-16 | Mecanismo de execução de I/O e retorno ao contexto GTK | GLib assíncrono / worker controlado |
+| Alta | DT-17 | Alterar a pasta de notas com arquivos existentes ou edições pendentes | manter origem / migrar com confirmação / oferecer escolha |
+| Alta | DT-18 | Permissões e operações na pasta padrão e alternativa com Flatpak | `xdg-documents` + portal; verificar persistência e escrita atômica em FUSE |
+| Alta | DT-19 | Escopo de listagem no diretório Documentos preexistente | incluir `.md` da raiz / escolha explícita / selecionar subpasta |
 
-**Recomendação de refinamento:** decidir DT-01 a DT-04 primeiro, uma decisão por interação, por afetarem garantias de integridade e contratos. As demais podem ser agrupadas nas histórias e validações dos marcos quando não alterarem o desenho.
+**Recomendação de refinamento:** DT-01 está aprovada. Resolver **DT-17 (mudança de pasta)** e **DT-19 (arquivos `.md` preexistentes)** antes dos fluxos de armazenamento; depois decidir DT-02 a DT-04, uma questão de integridade por vez. Validar DT-18 em POC técnica direcionada **dentro do próprio M1**, se necessário para comprovar suporte a permissões e atomicidade no Flatpak, sem assumir garantias antecipadas.
 
 ## 13. Critérios de conclusão da PREP-02
 
 Para declarar a PREP-02 aprovada, precisamos:
 1. Verificar cobertura de RF-01–25 e RNF-01–16.
-2. Resolver as decisões críticas DT-01–04, sem reabrir as ADRs desnecessariamente.
-3. Estabelecer contratos operacionais de salvamento, renomeação, exclusão e exportação suficientemente testáveis.
-4. Definir a versão de runtime/SDK e principais dependências durante o planejamento, antes da implementação que delas dependa.
+2. Incorporar a DT-01 aprovada e resolver DT-02–04, DT-17 e DT-19, sem reabrir as ADRs desnecessariamente.
+3. Estabelecer contratos operacionais de salvamento, renomeação, exclusão, troca de pasta e exportação suficientemente testáveis.
+4. Definir a versão de runtime/SDK e principais dependências durante o planejamento, antes da implementação que delas dependa; considerar a validação de permissões e publicação atômica em pastas selecionadas.
 5. Definir limites verificáveis de acessibilidade e falhas.
 6. Confirmar que nenhum requisito foi inventado além da PREP-01.
 7. Revisar este documento e aceitar sua baseline antes do backlog INVEST na PREP-03.
