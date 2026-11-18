@@ -49,6 +49,12 @@ Regras:
 
 `create-prd`, `create-techspec` e `create-tasks` são workflow CRS. Permanecem fora do SOUL dos agentes. Product Manager e Software Engineer podem apontar para esses commands. Não absorver o texto.
 
+## ai-memory
+
+Escopo deste repositório: `workspace = "oaknote"`, `project = "oak-note"` (`.ai-memory.toml`).
+
+Roteamento compacto em `AGENTS.md` (bloco marcado). Skills gerenciadas em `.agents/skills/ai-memory-*`. Skill operacional do pack em `skills/ai-memory/` (symlink Cursor em `.cursor/skills/ai-memory`).
+
 ## Orientações
 
 - Consulte os recursos relevantes antes de executar uma tarefa.
