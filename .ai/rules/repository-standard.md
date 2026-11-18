@@ -14,6 +14,12 @@
 - Mantenha os arquivos de cada demanda organizados em seu próprio diretório.
 - Atualize a documentação oficial quando houver mudanças relevantes.
 
+## Fluxo Git
+
+- Siga `.docs/engenharia/fluxo-git.md`.
+- Não faça commit nem push direto na `main`. Integração apenas por pull request.
+- Branches: `<tipo>/<issue>-<slug>`. Conventional Commits em inglês, ≤ 100 caracteres, sem `Co-authored-by`.
+
 ## Wiki ai-memory e `.docs/`
 
 - Código e YAML do checkout vencem wiki, planos Cursor e memória.

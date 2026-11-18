@@ -6,6 +6,8 @@ Todas as instruções, regras e orientações para agentes de IA estão centrali
 
 Escopo ai-memory deste projeto: `workspace = "oaknote"`, `project = "oak-note"` (ver `.ai-memory.toml`).
 
+Fluxo Git obrigatório: `.docs/engenharia/fluxo-git.md`. A `main` é protegida — não commit/push direto; só PR.
+
 <!-- ai-memory:start -->
 ## Long-term memory (ai-memory)
 
