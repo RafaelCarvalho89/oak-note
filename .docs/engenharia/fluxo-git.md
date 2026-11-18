@@ -92,6 +92,12 @@ Espelho M1: [`.work/demands/README-m1.md`](../../.work/demands/README-m1.md).
 - Efeito prático: push/commit direto na `main` bloqueados; integração apenas por PR.
 - Exceções administrativas (bypass do ruleset) não fazem parte do fluxo normal e exigem decisão explícita do mantenedor.
 
+## Ponteiros no repositório
+
+- README da raiz e [`.docs/README.md`](../README.md)
+- [`.ai/README.md`](../../.ai/README.md) (instruções canônicas de agentes; `AGENTS.md` só aponta para ele)
+- [`.ai/rules/repository-standard.md`](../../.ai/rules/repository-standard.md)
+
 ## Relação com o backlog
 
 - Issues e milestones no GitHub são a fila oficial do MVP.
