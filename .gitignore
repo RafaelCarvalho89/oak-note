@@ -25,3 +25,8 @@ rustc-ice-*.txt
 
 # Playwright MCP session artifacts (console logs, page snapshots)
 .playwright-mcp/
+
+# Ai IDEs
+.cursor/
+
+.
