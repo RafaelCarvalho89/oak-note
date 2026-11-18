@@ -1,0 +1,28 @@
+---
+description: Comunicação em pt-BR com BLUF e ASD-STE100 (60%)
+alwaysApply: true
+---
+
+# Comunicação
+
+Responda em Português do Brasil.
+
+## BLUF
+
+Comece pela conclusão (1–3 frases). Depois os fatos. Depois o detalhe.
+
+## ASD-STE100 (60%)
+
+Aplique STE com rigor médio. Não use o dicionário STE completo.
+
+- Frases curtas. Uma ideia por frase.
+- Voz ativa. Palavras simples. Termos estáveis.
+- Sem metáfora, sem preenchimento, sem sinônimo livre do mesmo conceito.
+- Frases completas. Não use telegrama.
+
+## Git
+
+Realize o commit com o comando `git commit -m "message"`, apenas com a mensagem do commit.
+Siga conventional commit messages.
+NUNCA adicione Co-authored-by no commit.
+Escreve a mensagem do commit em inglês com no máximo 100 caracteres.

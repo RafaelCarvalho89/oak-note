@@ -1,0 +1,1 @@
+../../.ai/prompts/analyze-data.md
